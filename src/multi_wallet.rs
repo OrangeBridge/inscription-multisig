@@ -80,7 +80,7 @@ impl MultiWallet {
         let rpc_config = RpcConfig {
             url: rpc_url,
             auth,
-            network: Network::Regtest,
+            network,
             wallet_name,
             sync_params: None,
         };
@@ -93,7 +93,6 @@ impl MultiWallet {
             m,
             wallet,
             blockchain,
-            
         })
     }
 }
@@ -109,7 +108,7 @@ pub fn test_getWallet() {
         ],
         "./wallet_test".to_string(),
         Network::Bitcoin,
-        "https://127.0.0.1:8333".to_string(),
+        "http://127.0.0.1:8332".to_string(),
         Auth::UserPass { username:"user".to_string(), password: "pass".to_string() }
         
     );
