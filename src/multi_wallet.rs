@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
+use bdk::bitcoin::psbt::{PartiallySignedTransaction, Psbt};
 use bdk::bitcoin::secp256k1::Secp256k1;
-use bdk::bitcoin::{ Network};
+use bdk::bitcoin::{ Address, Network};
 
 use bdk::blockchain::rpc::{Auth, RpcBlockchain};
 use bdk::blockchain::RpcConfig;
@@ -9,10 +10,13 @@ use bdk::miniscript::descriptor::TapTree;
 use bdk::miniscript::policy::Concrete;
 use bdk::miniscript::Descriptor;
 use bdk::sled::{self, Tree};
-use bdk::wallet::{wallet_name_from_descriptor, AddressIndex};
+use bdk::wallet::coin_selection::BranchAndBoundCoinSelection;
+use bdk::wallet::tx_builder::CreateTx;
+use bdk::wallet::{self, wallet_name_from_descriptor, AddressIndex};
 use bdk::blockchain::{ConfigurableBlockchain, NoopProgress};
-use bdk::{  SyncOptions, Wallet};
+use bdk::{  FeeRate, KeychainKind, SyncOptions, TransactionDetails, TxBuilder, Wallet};
 use dotenv::dotenv;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::str::FromStr;
 
@@ -87,13 +91,35 @@ impl MultiWallet {
 
         let blockchain = RpcBlockchain::from_config(&rpc_config).unwrap();
         // sync once
-        wallet.sync(&blockchain, SyncOptions::default())?;
+        wallet.sync(&blockchain, bdk::SyncOptions { progress: None })?;
+       
+       
         Ok(MultiWallet {
             pub_keys: new_keys,
             m,
             wallet,
             blockchain,
         })
+    }
+
+    // fun below is for testing psbt functionality remove 
+    fn create_psbt_drain(&self) -> Result<(Psbt, TransactionDetails)>{
+            let wallet_policy = self.wallet.policies(KeychainKind::External)?.unwrap();
+            let mut path = BTreeMap::new();
+            path.insert(wallet_policy.id, vec![1]);
+            // remove fauce bleow is only
+            let faucet_address = Address::from_str("tb1ql7w62elx9ucw4pj5lgw4l028hmuw80sndtntxt")?;
+            let mut tx_builder = self.wallet.build_tx();
+            tx_builder
+                .drain_wallet()
+                .drain_to(faucet_address.script_pubkey())
+                .fee_rate(FeeRate::from_sat_per_vb(3.0))
+                .policy_path(path, KeychainKind::External);
+        
+            let (psbt, _details) = tx_builder.finish()?;
+            println!("psbt {} details {:?}",psbt,_details);
+            Ok((psbt,_details))
+
     }
 }
 
@@ -144,5 +170,30 @@ fn get_address() {
             }
         }
         Err(_) => {}
+    }
+}
+
+
+#[test]
+fn pst_creation(){
+    let wallet = MultiWallet::new(
+        2,
+        vec![
+            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
+        ],
+        "./wallet_test".to_string(),
+        Network::Bitcoin,
+        "http://127.0.0.1:8332".to_string(),
+        Auth::UserPass { username:"user".to_string(), password: "pass".to_string() }
+        
+    );
+    match wallet {
+        Ok(wallet) =>{
+
+            let psbt = wallet.create_psbt_drain();
+        },
+        Err(err) => println!("{}", err),
     }
 }
