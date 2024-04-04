@@ -3,8 +3,9 @@ use bdk::bitcoin::psbt::{PartiallySignedTransaction, Psbt};
 use bdk::bitcoin::secp256k1::Secp256k1;
 use bdk::bitcoin::{ Address, Network};
 
-use bdk::blockchain::rpc::{Auth, RpcBlockchain};
-use bdk::blockchain::RpcConfig;
+use bdk::bitcoincore_rpc::Client;
+use bdk::blockchain::rpc::{Auth, RpcBlockchain, RpcSyncParams};
+use bdk::blockchain::{ElectrumBlockchain, RpcConfig};
 use bdk::database::MemoryDatabase;
 use bdk::miniscript::descriptor::TapTree;
 use bdk::miniscript::policy::Concrete;
@@ -14,7 +15,7 @@ use bdk::wallet::coin_selection::BranchAndBoundCoinSelection;
 use bdk::wallet::tx_builder::CreateTx;
 use bdk::wallet::{self, wallet_name_from_descriptor, AddressIndex};
 use bdk::blockchain::{ConfigurableBlockchain, NoopProgress};
-use bdk::{  FeeRate, KeychainKind, SyncOptions, TransactionDetails, TxBuilder, Wallet};
+use bdk::{  electrum_client, FeeRate, KeychainKind, SyncOptions, TransactionDetails, TxBuilder, Wallet};
 use dotenv::dotenv;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -86,12 +87,15 @@ impl MultiWallet {
             auth,
             network,
             wallet_name,
-            sync_params: None,
+            sync_params: Some(RpcSyncParams::default())
         };
 
         let blockchain = RpcBlockchain::from_config(&rpc_config).unwrap();
-        // sync once
-        wallet.sync(&blockchain, bdk::SyncOptions { progress: None })?;
+        let client = electrum_client::Client::new("ssl://electrum.blockstream.info:50002")?;
+        let blockchain_e = ElectrumBlockchain::from(client);
+       
+        // use electrum for initial sync for speed
+        wallet.sync(&blockchain_e, bdk::SyncOptions { progress: None })?;
        
        
         Ok(MultiWallet {
@@ -103,6 +107,10 @@ impl MultiWallet {
     }
 
     // fun below is for testing psbt functionality remove 
+    fn inscribe_brc20_transfer(){
+
+    }
+    
     fn create_psbt_drain(&self) -> Result<(Psbt, TransactionDetails)>{
             let wallet_policy = self.wallet.policies(KeychainKind::External)?.unwrap();
             let mut path = BTreeMap::new();

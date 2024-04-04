@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.81"
-bdk = {version = "0.28.1", default-feature = true, features = ["all-keys", "key-value-db",  "rpc","keys-bip39","compiler"]}
+bdk = {version = "0.28.1", default-feature = true, features = ["all-keys", "key-value-db",  "rpc","keys-bip39","compiler","electrum"]}
 bitcoin = "0.31.2"
 dotenv = "0.15.0"
 
