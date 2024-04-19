@@ -1,4 +1,7 @@
 pub mod multi_wallet;
+pub mod utils;
+pub mod ord_client;
+pub mod brc20;
 use bdk::bitcoin::secp256k1::Secp256k1;
 use bdk::bitcoin::util::bip32::{ExtendedPrivKey, ExtendedPubKey};
 use bdk::bitcoin::{PrivateKey, PublicKey, Network};
@@ -26,8 +29,8 @@ fn get_priv_key(){
     if let Err(err) = generate_tap_prvkey(){
         panic!("failed to gen priv ke {}",err)
     }
-
 }
+
 #[test]
 fn test_pubkey(){
     let priv_key = PrivateKey::from_wif("L3gEF529Rq1Zg6NdWTBFX3BmveNXdAs9xjYuzuamZWgLaMhVGnh3");
@@ -39,5 +42,4 @@ fn test_pubkey(){
         }
         Err(err) =>   panic!("failed to import private key {}",err)
     }
-    
 }
