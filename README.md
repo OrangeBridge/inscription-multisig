@@ -25,7 +25,4 @@ blocksonly=0
  https://github.com/ordinals/ord
 
 
-## usage
-
-   
   
