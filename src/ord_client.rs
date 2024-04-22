@@ -129,7 +129,7 @@ impl OrdClient {
         args.add_fee_rate(blockchain,self.network);
         args.extend([
             "--postage".to_string(),
-            "546 sats".to_string(),
+            "330 sats".to_string(),
             "--destination".to_string(),
             to.to_string(),
             "--file".to_string(),

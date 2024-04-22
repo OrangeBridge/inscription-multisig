@@ -108,13 +108,17 @@ impl MultiWallet {
             wallet.sync(&blockchain, bdk::SyncOptions { progress: None })?;
         }
         let _ord = OrdClient::new(auth, network).await?;
-
+        let db_tree = database.open_tree(format!("{}_unspendable",wallet_name)).unwrap();
+        let mut unspendable:Vec<OutPoint> = vec![];
+        if let Some(utxo_vec) = db_tree.get("unspendable")? {
+            unspendable= bincode::deserialize(&utxo_vec)?;
+        }
         // mig have to get unspendable from db ^^^^^^^^^^^^^^^^^^^^^^
         Ok(MultiWallet {
             m,
             wallet,
             blockchain,
-            unspendable: vec![],
+            unspendable,
             ord: _ord,
             ordinals_api_url,
             db:database,
@@ -157,61 +161,13 @@ impl MultiWallet {
         .ordering(TxOrdering::Untouched)
         .policy_path(path, KeychainKind::External)
         .add_utxo(utxo.outpoint)?
+        .unspendable(self.unspendable.clone())
         .add_recipient(to.script_pubkey(), utxo.txout.value)
         .enable_rbf();
-        
         let (mut psbt, _details) = tx_builder.finish()?;
-
-
-  
-
-        // get location of utxo should and what location is in psbt
-
-
         Ok((psbt, _details))
     }
 
-    pub fn transfer_insc_psbt(&self,inscription:Inscription,to:Address)->Result<PartiallySignedTransaction>{
-        let satpoint = SatPoint::from_str(inscription.location.as_str())?;  
-    
-        let utxo = self.get_utxo(inscription.location)?;
-
-        let prev_tx_id = Txid::from_str(satpoint.outpoint.txid.to_string().as_str()).unwrap();
-        let prev_out_index =  satpoint.outpoint.vout; 
-        let prev_out_script = utxo.txout.script_pubkey;
-        let prev_out_value = utxo.txout.value; // 0.01127776 BTC
-
-
-        let recipient_script = to.script_pubkey();
-        let transfer_amount = prev_out_value; 
-
-        let input = TxIn {
-            previous_output: OutPoint::new(prev_tx_id, prev_out_index),
-            script_sig: Script::new(),
-            sequence: bdk::bitcoin::Sequence(0xFFFFFFFD),
-            witness:Witness::new(),
-        };
-
-        let recipient_output = TxOut {
-            value: transfer_amount,
-            script_pubkey: recipient_script,
-        };
-        let transaction = Transaction {
-            version: 2,
-            lock_time: bdk::bitcoin::PackedLockTime(0),
-            input: vec![input],
-            output: vec![recipient_output],
-        };
-
-        
-        let mut psbt = PartiallySignedTransaction::from_unsigned_tx(transaction).unwrap();
-        // temp sol if works remove and set gas to none
-        psbt.inputs[0].witness_utxo = Some(TxOut {
-            value: prev_out_value,
-            script_pubkey: prev_out_script,
-        });
-        return  Ok(psbt);
-    }
     pub fn update_unspendable(&self,outpoint:OutPoint)->Result<()>{
         let db_tree = self.db.open_tree(format!("{}_unspendable",self.wallet_name)).unwrap();
         let mut unspendable:Vec<OutPoint> = vec![];
@@ -226,6 +182,15 @@ impl MultiWallet {
         }
         let data = bincode::serialize(&unspendable)?;
         db_tree.insert("unspendable", data)?;
+        Ok(())
+    }
+    pub fn remove_unspendable(&self,outpoint:OutPoint)->Result<()>{
+        let db_tree = self.db.open_tree(format!("{}_unspendable",self.wallet_name)).unwrap();
+        let mut unspendable:Vec<OutPoint> = vec![];
+        if let Some(utxo_vec) = db_tree.get("unspendable")? {
+            unspendable= bincode::deserialize(&utxo_vec)?;
+            unspendable.retain(|utxo| utxo.txid ==outpoint.txid && utxo.vout == outpoint.vout);
+        }
         Ok(())
     }
     pub fn get_unspendable(&self)->Result<Vec<OutPoint>>{
