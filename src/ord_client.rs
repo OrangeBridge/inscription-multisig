@@ -1,16 +1,14 @@
-use bdk::bitcoin::network::address;
-use bdk::bitcoin::{network, Address, Network, OutPoint};
 
+
+use bdk::bitcoin::{Address, Network};
 use bdk::bitcoincore_rpc::jsonrpc::serde_json;
 use bdk::blockchain::rpc::Auth;
-use bdk::blockchain::{self, Blockchain, RpcBlockchain, RpcConfig};
+use bdk::blockchain::{ Blockchain, RpcBlockchain};
+
 use bdk::wallet::AddressIndex;
-use bdk::Wallet;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use std::fs::remove_file;
-use std::os::windows::process::CommandExt;
 use std::str::FromStr;
 use std::{
     io::{BufRead, BufReader},
