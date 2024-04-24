@@ -140,7 +140,7 @@ impl MultiWallet {
         }
         let address = self.wallet.get_address(AddressIndex::Peek(0))?;
         let brc20 = Brc20::new_transfer(ticker, amount);
-        let inscription = self.ord.inscribe_brc20(brc20, address.address, &self.blockchain)?;
+        let inscription = self.ord.inscribe_brc20(brc20, address.address, &self.blockchain).await?;
         Ok(inscription)
     }
     /**
