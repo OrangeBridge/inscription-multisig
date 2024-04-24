@@ -130,12 +130,12 @@ impl OrdClient {
     /**
      * inscribe brc20 inscription
      */
-    pub fn inscribe_brc20(&self, brc20: Brc20, to: Address, blockchain: &RpcBlockchain)->Result<InscribeOutput> {
+    pub async fn inscribe_brc20(&self, brc20: Brc20, to: Address, blockchain: &RpcBlockchain)->Result<InscribeOutput> {
         let mut args = vec![];
         args.add_auth(self.auth.clone());
         args.add_network_args(self.network);
         args.extend(["wallet".to_string(), "inscribe".to_string()]);
-        args.add_fee_rate(blockchain,self.network);
+        args.add_fee_rate(blockchain,self.network).await;
         args.extend([
             "--postage".to_string(),
             "546 sats".to_string(),
@@ -276,7 +276,7 @@ async fn estimate_fee(){
     match  wallet {
         Ok(wallet) => {
             let mut args = vec![];
-            args.add_fee_rate(&wallet.blockchain,Network::Bitcoin);
+            args.add_fee_rate(&wallet.blockchain,Network::Bitcoin).await;
             print!("{:?}",args)
         }
         Err(e) => {
@@ -315,7 +315,7 @@ async fn inscribe_brc20_test(){
             }
             let brc =  Brc20::new_deploy("test".to_string(), 100.00, 200.00) ;
             if let Ok(address) = wallet.wallet.get_internal_address(AddressIndex::New){
-                let output = wallet.ord.inscribe_brc20(brc, address.address, &wallet.blockchain);
+                let output = wallet.ord.inscribe_brc20(brc, address.address, &wallet.blockchain).await;
                 match output {
                     Ok(ins) => {
                         println!("out {:?}",ins)
