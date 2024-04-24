@@ -17,7 +17,7 @@ use std::{
 };
 
 use crate::multi_wallet::MultiWallet;
-use crate::utils::ParseOutput;
+use crate::utils::{MempoolFeeRate, ParseOutput};
 use crate::{brc20::Brc20, utils::executable_path};
 use anyhow::{bail, Result};
 use std::process::Command;
@@ -45,15 +45,7 @@ pub struct InscribeOutput {
 pub struct RecieveOutput {
     pub address:String
 }
-#[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug)]
-struct MempoolFeeRate{
-  pub fastestFee: f32,
-  pub halfHourFee: f32,
-  pub hourFee: f32,
-  pub economyFee: f32,
-  pub minimumFee: f32
-}
+
 
 pub(crate) trait AddArgs {
     fn add_auth(&mut self, auth: Auth);
