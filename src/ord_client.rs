@@ -45,11 +45,20 @@ pub struct InscribeOutput {
 pub struct RecieveOutput {
     pub address:String
 }
+#[allow(non_snake_case)]
+#[derive(Serialize, Deserialize, Debug)]
+struct MempoolFeeRate{
+  pub fastestFee: f32,
+  pub halfHourFee: f32,
+  pub hourFee: f32,
+  pub economyFee: f32,
+  pub minimumFee: f32
+}
 
 pub(crate) trait AddArgs {
     fn add_auth(&mut self, auth: Auth);
-    fn add_network_args(&mut self, network: Network);
-    fn add_fee_rate(&mut self, network: &RpcBlockchain,network:Network);
+     fn add_network_args(&mut self, network: Network);
+     async fn add_fee_rate(&mut self, network: &RpcBlockchain,network:Network);
 }
 
 
@@ -195,19 +204,33 @@ impl AddArgs for Vec<String> {
         }
     }
 
-    fn add_fee_rate(&mut self, blockchain: &RpcBlockchain,network:Network) {
+    async fn add_fee_rate(&mut self, blockchain: &RpcBlockchain,network:Network) {
         self.push("--fee-rate".to_string());
         if network == Network::Regtest{
             self.push("1".to_string())
         }
-        else {
-            if let Ok(fee) = blockchain.estimate_fee(1) {
-                println!("fee {}",fee.as_sat_per_vb().to_string());
-                self.push(fee.as_sat_per_vb().to_string());
-            } else  {
-                panic!("could not estimat gas fee")
+        else if network == Network::Bitcoin{
+            let res = reqwest::get("https://mempool.space/api/v1/fees/recommended").await;
+            match res {
+                Ok(res) => {
+                    if res.status().is_success() {
+                        let fee = res.json::<MempoolFeeRate>().await.unwrap();
+                        println!("fee {}",fee.fastestFee);
+                        self.push(fee.fastestFee.to_string());
+                        return ;
+                    } 
+                }
+                Err(_) => {}
             }
-        }  
+        }
+
+        if let Ok(fee) = blockchain.estimate_fee(1) {
+            println!("fee {}",fee.as_sat_per_vb().to_string());
+            self.push(fee.as_sat_per_vb().to_string());
+        } else  {
+            panic!("could not estimat gas fee")
+        }
+  
     }
 }
 
