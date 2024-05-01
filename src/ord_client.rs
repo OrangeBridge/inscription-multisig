@@ -17,7 +17,7 @@ use std::{
 };
 
 use crate::multi_wallet::MultiWallet;
-use crate::utils::ParseOutput;
+use crate::utils::{MempoolFeeRate, ParseOutput};
 use crate::{brc20::Brc20, utils::executable_path};
 use anyhow::{bail, Result};
 use std::process::Command;
@@ -46,10 +46,11 @@ pub struct RecieveOutput {
     pub address:String
 }
 
+
 pub(crate) trait AddArgs {
     fn add_auth(&mut self, auth: Auth);
-    fn add_network_args(&mut self, network: Network);
-    fn add_fee_rate(&mut self, network: &RpcBlockchain,network:Network);
+     fn add_network_args(&mut self, network: Network);
+     async fn add_fee_rate(&mut self, network: &RpcBlockchain,network:Network);
 }
 
 
@@ -121,12 +122,12 @@ impl OrdClient {
     /**
      * inscribe brc20 inscription
      */
-    pub fn inscribe_brc20(&self, brc20: Brc20, to: Address, blockchain: &RpcBlockchain)->Result<InscribeOutput> {
+    pub async fn inscribe_brc20(&self, brc20: Brc20, to: Address, blockchain: &RpcBlockchain)->Result<InscribeOutput> {
         let mut args = vec![];
         args.add_auth(self.auth.clone());
         args.add_network_args(self.network);
         args.extend(["wallet".to_string(), "inscribe".to_string()]);
-        args.add_fee_rate(blockchain,self.network);
+        args.add_fee_rate(blockchain,self.network).await;
         args.extend([
             "--postage".to_string(),
             "330 sats".to_string(),
@@ -195,19 +196,33 @@ impl AddArgs for Vec<String> {
         }
     }
 
-    fn add_fee_rate(&mut self, blockchain: &RpcBlockchain,network:Network) {
+    async fn add_fee_rate(&mut self, blockchain: &RpcBlockchain,network:Network) {
         self.push("--fee-rate".to_string());
         if network == Network::Regtest{
             self.push("1".to_string())
         }
-        else {
-            if let Ok(fee) = blockchain.estimate_fee(1) {
-                println!("fee {}",fee.as_sat_per_vb().to_string());
-                self.push(fee.as_sat_per_vb().to_string());
-            } else  {
-                panic!("could not estimat gas fee")
+        else if network == Network::Bitcoin{
+            let res = reqwest::get("https://mempool.space/api/v1/fees/recommended").await;
+            match res {
+                Ok(res) => {
+                    if res.status().is_success() {
+                        let fee = res.json::<MempoolFeeRate>().await.unwrap();
+                        println!("fee {}",fee.fastestFee);
+                        self.push(fee.fastestFee.to_string());
+                        return ;
+                    } 
+                }
+                Err(_) => {}
             }
-        }  
+        }
+
+        if let Ok(fee) = blockchain.estimate_fee(1) {
+            println!("fee {}",fee.as_sat_per_vb().to_string());
+            self.push(fee.as_sat_per_vb().to_string());
+        } else  {
+            panic!("could not estimat gas fee")
+        }
+  
     }
 }
 
@@ -253,7 +268,7 @@ async fn estimate_fee(){
     match  wallet {
         Ok(wallet) => {
             let mut args = vec![];
-            args.add_fee_rate(&wallet.blockchain,Network::Bitcoin);
+            args.add_fee_rate(&wallet.blockchain,Network::Bitcoin).await;
             print!("{:?}",args)
         }
         Err(e) => {
@@ -292,7 +307,7 @@ async fn inscribe_brc20_test(){
             }
             let brc =  Brc20::new_deploy("test".to_string(), 100.00, 200.00) ;
             if let Ok(address) = wallet.wallet.get_internal_address(AddressIndex::New){
-                let output = wallet.ord.inscribe_brc20(brc, address.address, &wallet.blockchain);
+                let output = wallet.ord.inscribe_brc20(brc, address.address, &wallet.blockchain).await;
                 match output {
                     Ok(ins) => {
                         println!("out {:?}",ins)

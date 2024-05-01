@@ -8,6 +8,7 @@ use bdk::bitcoin::secp256k1::rand::distributions::Alphanumeric;
 use bdk::bitcoin::secp256k1::rand::{self, random, Rng};
 use bdk::bitcoincore_rpc::jsonrpc::serde_json;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 
 const RANDOM_CHARS_LENGTH: usize = 10;
@@ -53,4 +54,13 @@ impl ParseOutput for String {
     }
 }
 
-
+// refacot later to more appropiate file location
+#[allow(non_snake_case)]
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MempoolFeeRate{
+  pub fastestFee: f32,
+  pub halfHourFee: f32,
+  pub hourFee: f32,
+  pub economyFee: f32,
+  pub minimumFee: f32
+}
