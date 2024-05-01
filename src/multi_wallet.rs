@@ -22,14 +22,12 @@ use bdk::wallet::{coin_selection, wallet_name_from_descriptor, AddressIndex, Add
 use bdk::{electrum_client, FeeRate, KeychainKind, LocalUtxo, SignOptions, TransactionDetails, Wallet, WeightedUtxo};
 use dotenv::dotenv;
 use ordinals::SatPoint;
-use tokio::sync::broadcast;
 use std::collections::BTreeMap;
 use std::ops::Add;
 use std::str::FromStr;
 use std::sync::Arc;
 use crate::brc20::{self, BalanceResponse, Brc20};
 use crate::ord_client::{AddArgs, InscribeOutput, Inscription, OrdClient};
-use crate::utils::MempoolFeeRate;
 
 /* TODOS:
     1. implement custom errors later
@@ -146,27 +144,25 @@ impl MultiWallet {
         }
         let address = self.wallet.get_address(AddressIndex::Peek(0))?;
         let brc20 = Brc20::new_transfer(ticker, amount);
-        let inscription = self.ord.inscribe_brc20(brc20, address.address, &self.blockchain).await?;
+        let inscription = self.ord.inscribe_brc20(brc20, address.address, &self.blockchain)?;
         Ok(inscription)
     }
     /**
      * create a psbt to transfer inscription
      */
-    pub async fn transfer_insc_zero_fee(&self,inscription:Inscription,to:Address)->Result<(Psbt, TransactionDetails)> {
+    pub fn transfer_insc_zero_fee(&self,inscription:Inscription,to:Address)->Result<(Psbt, TransactionDetails)> {
         let wallet_policy = self.wallet.policies(KeychainKind::External)?.unwrap();
         let mut path = BTreeMap::new();
         path.insert(wallet_policy.id, vec![1]);
         let mut tx_builder = self.wallet.build_tx().coin_selection(LargestFirstCoinSelection);
         let _ = self.sync();
-        let utxo: LocalUtxo = self.get_utxo(inscription.location)?;
-        let feerate = self.fee_rate_sat_vb().await?;
+        let utxo = self.get_utxo(inscription.location)?;
         tx_builder
         .ordering(TxOrdering::Untouched)
         .policy_path(path, KeychainKind::External)
         .add_utxo(utxo.outpoint)?
         .unspendable(self.unspendable.clone())
         .add_recipient(to.script_pubkey(), utxo.txout.value)
-        .fee_rate(FeeRate::from_sat_per_vb(feerate))
         .enable_rbf();
         let (mut psbt, _details) = tx_builder.finish()?;
         Ok((psbt, _details))
@@ -178,6 +174,8 @@ impl MultiWallet {
         if let Some(utxo_vec) = db_tree.get("unspendable")? {
             unspendable= bincode::deserialize(&utxo_vec)?;
             unspendable.push(outpoint);
+            
+            println!("UTXO: {:?}", unspendable);
         }
         else {
             unspendable = vec![outpoint];
@@ -243,13 +241,13 @@ pub async fn test_getWallet() {
     let wallet = MultiWallet::new(
         2,
         vec![
-            "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
-            "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
-            "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
+            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
         ],
         "./wallet_test".to_string(),
-        Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
+        Network::Regtest,
+        "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),
@@ -257,21 +255,35 @@ pub async fn test_getWallet() {
         "https://api.hiro.so".to_string()
     ).await;
     match wallet {
-        Ok(wallet) =>{
-       
-            if let Ok(address) = wallet.wallet.get_internal_address(AddressIndex::New) {
-                println!("{} address", address);
-            } else {
-                print!("failed to load address")
-            }
-            if let Ok(address) = wallet.wallet.get_address(AddressIndex::New) {
-                println!("{} address", address);
-            } else {
-                print!("failed to load address")
-            }
-            
-        }
+        Ok(wallet) => println!("{:?}", wallet),
         Err(err) => println!("{}", err),
+    }
+}
+
+
+#[tokio::test]
+async fn get_address() {
+    let wallet = Wallet::new(
+        // TODO: insert your descriptor here
+        "tr(020202020202020202020202020202020202020202020202020202020202020202,multi_a(2,03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1,02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423,02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04))#wahxnw0v",
+        None,
+        Network::Regtest,
+        MemoryDatabase::new()
+    );
+    match wallet {
+        Ok(wallet) => {
+            if let Ok(address) = wallet.get_internal_address(AddressIndex::New) {
+                println!("{} address", address);
+            } else {
+                print!("failed to load address")
+            }
+            if let Ok(address) = wallet.get_address(AddressIndex::New) {
+                println!("{} address", address);
+            } else {
+                print!("failed to load address")
+            }
+        }
+        Err(_) => {}
     }
 }
 
@@ -281,13 +293,13 @@ async fn inscribe_brc_transfer(){
     let wallet = MultiWallet::new(
         2,
         vec![
-            "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
-            "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
-            "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
+            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
         ],
         "./wallet_test".to_string(),
-        Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
+        Network::Regtest,
+        "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),
@@ -297,7 +309,7 @@ async fn inscribe_brc_transfer(){
     match wallet {
         Ok(wallet) => {
 
-            let ins = wallet.inscribe_transferable("bepi".to_string(), 25.2).await;
+            let ins = wallet.inscribe_transferable("test".to_string(), 2323.2).await;
             match  ins {
                 Ok(ins) => {
                     println!("inscription :{:?}",ins);
@@ -316,13 +328,13 @@ async fn xfer_insc_psbt(){
     let wallet = MultiWallet::new(
         2,
         vec![
-            "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
-            "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
-            "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
+            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
         ],
         "./wallet_test".to_string(),
-        Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
+        Network::Regtest,
+        "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),
@@ -332,11 +344,11 @@ async fn xfer_insc_psbt(){
     match wallet {
         Ok(mut wallet) => {
             let ins = Inscription{
-                id:"02eb5eb752b69128abe327aa73a3b3139f2a9e7d4975c0c7b607e1c0899739aei0".to_string(),
-                location:"02eb5eb752b69128abe327aa73a3b3139f2a9e7d4975c0c7b607e1c0899739ae:0:0".to_string()
+                id:"976eae362028377038df78af762595811cd7649c3b8f8db42d8f105e7d70628di0".to_string(),
+                location:"976eae362028377038df78af762595811cd7649c3b8f8db42d8f105e7d70628d:0:0".to_string()
             };
-            let to = Address::from_str("bc1p9fauj3clzhglv50h0vq85c5kd8xp3yd7g80dcd9svpw9g7v87pjsn2n92f").ok().unwrap();
-            let psbt = wallet.transfer_insc_zero_fee(ins,to).await;
+            let to = Address::from_str("bcrt1p0qln2gy2me7rdd2f77ua4rc2r5lq2qz2tlfrex8xfzwaeq25hg0qxnpksl").ok().unwrap();
+            let psbt = wallet.transfer_insc_zero_fee(ins,to);
             match  psbt {
                 Ok(psbt) => {
                     print!("psbt:{}",psbt.0);  
@@ -357,13 +369,13 @@ async fn sign_psbt(){
     let wallet = MultiWallet::new(
         2,
         vec![
-            "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
-            "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
-            "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
+            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
         ],
         "./wallet_test".to_string(),
-        Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
+        Network::Regtest,
+        "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),
@@ -372,8 +384,8 @@ async fn sign_psbt(){
     ).await;
     match wallet {
         Ok(mut wallet) => {
-               let mut _psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAq45l4nA4Qe2x8B1SX2eKp8Ts6NzqifjqyiRtlK3XusCAAAAAAD9////E/HtvqOBA2ze26fqhMhDUZOM44+g/wQv96HyHCflv1kAAAAAAP3///8CIgIAAAAAAAAiUSAqe8lHHxXR9lH3ewB6YpZpzBiRvkHe3DSwYFxUeYfwZQObAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3j40wwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3giFcECAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijOsIJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXguiCT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YILpSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRaT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YICUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpw4HqXhIRZwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKMyUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpwc6RVDIRaUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4CUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpzYt2h3ARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnAABAStAnAAAAAAAACJRIF0uvROIbIDKTvJU//yKtM41J8YwytNddRtsJTO7VjN4IhXBAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJpIHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozrCCUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4Logk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCC6UpzAIRYCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEWk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEWcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEWlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwEXIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICARgg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpwAAAEFIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAQZrAMBoIHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozrCCUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4Logk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCC6UpwhBwICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIQeT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YICUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpw4HqXhIQdwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKMyUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpwc6RVDIQeUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4CUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpzYt2h3AA==").unwrap();
-               let private_key = PrivateKey::from_str("L5WuqadbjUzNoM1HSDNRonQzHt88VAFFdUiWkHDsCZ9hCAuNiQDC").ok().unwrap();
+               let mut _psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAo1icH1eEI8ttI2PO5xk1xyBlSV2r3jfOHA3KCA2rm6XAAAAAAD9////CboNIjXtFIUuY3nJ9rE8zdYtImP5UacEHMUTtZZWUtgAAAAAAP3///8CIgIAAAAAAAAiUSB4PzUgit58NrVJ97najwodPgUASl/SPJjmSJ3cgVS6HsPwBSoBAAAAIlEgUfeAHSzyahK/PquvEnW+iZ6KZrqhOxQOIkbWxQBmD4iHAQAAAAEBKyICAAAAAAAAIlEgUfeAHSzyahK/PquvEnW+iZ6KZrqhOxQOIkbWxQBmD4giFcACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkg275QK6mnEQwcLcDdLy/HHqEjsweCHCzCZT/0ktOT1LGsIEJe1BWxrAoCIE55p0I8W0dr9b0oH2X5CfoS4A4eS1QjuiDpnya4E6FWomTtOp/khujD7tTDpuYpBDhiy5tQgyA7BLpSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRbpnya4E6FWomTtOp/khujD7tTDpuYpBDhiy5tQgyA7BCUBSdK8lwZd0O+zLWSCuIS45pjy/zFiqWfTjLltPbRDKQ/GahbcIRZCXtQVsawKAiBOeadCPFtHa/W9KB9l+Qn6EuAOHktUIyUBSdK8lwZd0O+zLWSCuIS45pjy/zFiqWfTjLltPbRDKQ99HTkeIRbbvlArqacRDBwtwN0vL8ceoSOzB4IcLMJlP/SS05PUsSUBSdK8lwZd0O+zLWSCuIS45pjy/zFiqWfTjLltPbRDKQ/iw+IbARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCBJ0ryXBl3Q77MtZIK4hLjmmPL/MWKpZ9OMuW09tEMpDwABASsA8gUqAQAAACJRIFH3gB0s8moSvz6rrxJ1vomeima6oTsUDiJG1sUAZg+IIhXAAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJpINu+UCuppxEMHC3A3S8vxx6hI7MHghwswmU/9JLTk9SxrCBCXtQVsawKAiBOeadCPFtHa/W9KB9l+Qn6EuAOHktUI7og6Z8muBOhVqJk7Tqf5Ibow+7Uw6bmKQQ4YsubUIMgOwS6UpzAIRYCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEW6Z8muBOhVqJk7Tqf5Ibow+7Uw6bmKQQ4YsubUIMgOwQlAUnSvJcGXdDvsy1kgriEuOaY8v8xYqln04y5bT20QykPxmoW3CEWQl7UFbGsCgIgTnmnQjxbR2v1vSgfZfkJ+hLgDh5LVCMlAUnSvJcGXdDvsy1kgriEuOaY8v8xYqln04y5bT20QykPfR05HiEW275QK6mnEQwcLcDdLy/HHqEjsweCHCzCZT/0ktOT1LElAUnSvJcGXdDvsy1kgriEuOaY8v8xYqln04y5bT20QykP4sPiGwEXIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICARggSdK8lwZd0O+zLWSCuIS45pjy/zFiqWfTjLltPbRDKQ8AAAEFIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAQZrAMBoINu+UCuppxEMHC3A3S8vxx6hI7MHghwswmU/9JLTk9SxrCBCXtQVsawKAiBOeadCPFtHa/W9KB9l+Qn6EuAOHktUI7og6Z8muBOhVqJk7Tqf5Ibow+7Uw6bmKQQ4YsubUIMgOwS6UpwhBwICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIQfpnya4E6FWomTtOp/khujD7tTDpuYpBDhiy5tQgyA7BCUBSdK8lwZd0O+zLWSCuIS45pjy/zFiqWfTjLltPbRDKQ/GahbcIQdCXtQVsawKAiBOeadCPFtHa/W9KB9l+Qn6EuAOHktUIyUBSdK8lwZd0O+zLWSCuIS45pjy/zFiqWfTjLltPbRDKQ99HTkeIQfbvlArqacRDBwtwN0vL8ceoSOzB4IcLMJlP/SS05PUsSUBSdK8lwZd0O+zLWSCuIS45pjy/zFiqWfTjLltPbRDKQ/iw+IbAA==").unwrap();
+               let private_key = PrivateKey::from_str("KwJyhCrEK6ARVZ6qdNaCGjyjvp86EduTvEz7HZiZZyL7RiWvXxzi").ok().unwrap();
                let signer = SignerWrapper::new(private_key, SignerContext::Tap { is_internal_key: false });
 
                wallet.wallet.add_signer(
@@ -393,13 +405,13 @@ async fn combine_broadcast(){
     let wallet = MultiWallet::new(
         2,
         vec![
-            "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
-            "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
-            "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
+            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
         ],
         "./wallet_test".to_string(),
-        Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
+        Network::Regtest,
+        "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),
@@ -408,11 +420,11 @@ async fn combine_broadcast(){
     ).await;
     match wallet {
         Ok(wallet) => {
-            let mut base_psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAq45l4nA4Qe2x8B1SX2eKp8Ts6NzqifjqyiRtlK3XusCAAAAAAD9////E/HtvqOBA2ze26fqhMhDUZOM44+g/wQv96HyHCflv1kAAAAAAP3///8CIgIAAAAAAAAiUSAqe8lHHxXR9lH3ewB6YpZpzBiRvkHe3DSwYFxUeYfwZQObAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3j40wwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3giFcECAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijOsIJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXguiCT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YILpSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRaT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YICUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpw4HqXhIRZwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKMyUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpwc6RVDIRaUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4CUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpzYt2h3ARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnAABAStAnAAAAAAAACJRIF0uvROIbIDKTvJU//yKtM41J8YwytNddRtsJTO7VjN4IhXBAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJpIHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozrCCUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4Logk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCC6UpzAIRYCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEWk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEWcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEWlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwEXIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICARgg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpwAAAEFIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAQZrAMBoIHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozrCCUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4Logk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCC6UpwhBwICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIQeT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YICUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpw4HqXhIQdwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKMyUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpwc6RVDIQeUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4CUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpzYt2h3AA==").unwrap();
+            let mut base_psbt = PartiallySignedTransaction::from_str("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").unwrap();
             let signed_psbts = vec![
                  // TODO: Paste each participant's PSBT here
-                 "cHNidP8BALIBAAAAAq45l4nA4Qe2x8B1SX2eKp8Ts6NzqifjqyiRtlK3XusCAAAAAAD9////E/HtvqOBA2ze26fqhMhDUZOM44+g/wQv96HyHCflv1kAAAAAAP3///8CIgIAAAAAAAAiUSAqe8lHHxXR9lH3ewB6YpZpzBiRvkHe3DSwYFxUeYfwZQObAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3j40wwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2Ioz24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxARRoVmkL+sveMsj7R6iyPXzL0Y7WDVCdM9hYlbwQKPPCToySBaPzbnsIZYO6oWyNb3+Nj9Qvc3bi91tihNdUokyIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAEBK0CcAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2Ioz24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxArTFaduuc4dzmejdmAwvScZEMosugic73uw5MTxmmsPl2LtCduF8255BJgVt6VPo/I3F1CTyDCy7453CBK+Hy/iIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAABBSACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEGawDAaCBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcIQcCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEHk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEHcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEHlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwA=",
-                 "cHNidP8BALIBAAAAAq45l4nA4Qe2x8B1SX2eKp8Ts6NzqifjqyiRtlK3XusCAAAAAAD9////E/HtvqOBA2ze26fqhMhDUZOM44+g/wQv96HyHCflv1kAAAAAAP3///8CIgIAAAAAAAAiUSAqe8lHHxXR9lH3ewB6YpZpzBiRvkHe3DSwYFxUeYfwZQObAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3j40wwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxAizNkIn1FcBqiktX5TvOLxRk5iKQklW/jCZwQuUPniE0FQrl/M9Ry0P7MhbA+kD/imUtQ+TW80X5jXfOKeR5kISIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAEBK0CcAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxADFfsqur7pY++eW9rMNAI0AJuFtSfydNYnVq7wOQtNGL5IZGUHXDLNw4i8NH7acA87mySOTekGOuPvD6c5OW0uSIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAABBSACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEGawDAaCBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcIQcCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEHk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEHcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEHlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwA="
+                 "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",
+                 "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"
                  ];
         
             for psbt in signed_psbts {
@@ -424,11 +436,7 @@ async fn combine_broadcast(){
             let psbt = base_psbt.finalize(&secp).unwrap();
             let finalized_tx = psbt.extract_tx();
             dbg!(finalized_tx.txid());
-            let broadcast = wallet.blockchain.broadcast(&finalized_tx);
-            match  broadcast {
-                Ok(_) => {println!(" succesfullt broadcasted")},
-                Err(err) =>{println!("error:{}",err)}
-            }
+            dbg!(wallet.blockchain.broadcast(&finalized_tx)).ok();
         }
         Err(err) => println!("{}", err),
     }
