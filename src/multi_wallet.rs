@@ -111,12 +111,17 @@ impl MultiWallet {
         }
         let _ord = OrdClient::new(auth, network).await?;
 
+        let db_tree = database.open_tree(format!("{}_unspendable",wallet_name)).unwrap();
+        let mut unspendable:Vec<OutPoint> = vec![];
+        if let Some(utxo_vec) = db_tree.get("unspendable")? {
+            unspendable= bincode::deserialize(&utxo_vec)?;
+        }
         // mig have to get unspendable from db ^^^^^^^^^^^^^^^^^^^^^^
         Ok(MultiWallet {
             m,
             wallet,
             blockchain,
-            unspendable: vec![],
+            unspendable: unspendable,
             ord: _ord,
             ordinals_api_url,
             db:database,
@@ -160,7 +165,9 @@ impl MultiWallet {
         .ordering(TxOrdering::Untouched)
         .policy_path(path, KeychainKind::External)
         .add_utxo(utxo.outpoint)?
+        .unspendable(self.unspendable.clone())
         .add_recipient(to.script_pubkey(), utxo.txout.value)
+      
         .fee_rate(FeeRate::from_sat_per_vb(feerate))
         .enable_rbf();
         
@@ -241,6 +248,7 @@ impl MultiWallet {
         });
         return  Ok(psbt);
     }
+
     pub fn update_unspendable(&self,outpoint:OutPoint)->Result<()>{
         let db_tree = self.db.open_tree(format!("{}_unspendable",self.wallet_name)).unwrap();
         let mut unspendable:Vec<OutPoint> = vec![];
@@ -255,6 +263,15 @@ impl MultiWallet {
         }
         let data = bincode::serialize(&unspendable)?;
         db_tree.insert("unspendable", data)?;
+        Ok(())
+    }
+    pub fn remove_unspendable(&self,outpoint:OutPoint)->Result<()>{
+        let db_tree = self.db.open_tree(format!("{}_unspendable",self.wallet_name)).unwrap();
+        let mut unspendable:Vec<OutPoint> = vec![];
+        if let Some(utxo_vec) = db_tree.get("unspendable")? {
+            unspendable= bincode::deserialize(&utxo_vec)?;
+            unspendable.retain(|utxo| utxo.txid ==outpoint.txid && utxo.vout == outpoint.vout);
+        }
         Ok(())
     }
     pub fn get_unspendable(&self)->Result<Vec<OutPoint>>{
