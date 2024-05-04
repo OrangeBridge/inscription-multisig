@@ -214,14 +214,15 @@ impl AddArgs for Vec<String> {
                 }
                 Err(_) => {}
             }
+            if let Ok(fee) = blockchain.estimate_fee(1) {
+                println!("fee {}",fee.as_sat_per_vb().to_string());
+                self.push(fee.as_sat_per_vb().to_string());
+            } else  {
+                panic!("could not estimat gas fee")
+            }
         }
 
-        if let Ok(fee) = blockchain.estimate_fee(1) {
-            println!("fee {}",fee.as_sat_per_vb().to_string());
-            self.push(fee.as_sat_per_vb().to_string());
-        } else  {
-            panic!("could not estimat gas fee")
-        }
+       
   
     }
 }

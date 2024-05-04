@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use bdk::bitcoin::blockdata::witness;
-use bdk::bitcoin::psbt::{self, PartiallySignedTransaction, Psbt};
+use bdk::bitcoin::psbt::{self, PartiallySignedTransaction, Psbt, PsbtSighashType};
 use bdk::bitcoin::secp256k1::Secp256k1;
 use bdk::bitcoin::{Address, Network, OutPoint, PrivateKey, Script, Transaction, TxIn, TxOut, Txid, Witness};
 use bdk::bitcoincore_rpc::json::Utxo;
@@ -182,6 +182,29 @@ impl MultiWallet {
         Ok((psbt, _details))
     }
 
+        /**
+     * create a psbt to transfer inscription
+     */
+    pub async fn transfer_insc_no_gas(&self,inscription:Inscription,to:Address)->Result<(Psbt, TransactionDetails)> {
+        let wallet_policy = self.wallet.policies(KeychainKind::External)?.unwrap();
+        let mut path = BTreeMap::new();
+        path.insert(wallet_policy.id, vec![1]);
+        let mut tx_builder = self.wallet.build_tx().coin_selection(LargestFirstCoinSelection);
+        let _ = self.sync();
+        let utxo: LocalUtxo = self.get_utxo(inscription.location)?;
+        tx_builder
+        .ordering(TxOrdering::Untouched)
+        .policy_path(path, KeychainKind::External)
+        .add_utxo(utxo.outpoint)?
+        .unspendable(self.unspendable.clone())
+        .add_recipient(to.script_pubkey(), utxo.txout.value)
+        .fee_absolute(0)
+        .enable_rbf()
+        .sighash(PsbtSighashType::from_u32(0x83));
+        let (mut psbt, _details) = tx_builder.finish()?;
+        Ok((psbt, _details))
+    }
+
     pub async fn fee_rate_sat_vb(&self)-> Result<f32>{
         let network = self.wallet.network();
         if network == Network::Regtest{
@@ -284,8 +307,6 @@ impl MultiWallet {
             return  Ok(vec![])
         }
     }
-
-
     //npm run dev
     pub async fn check_available(&self,ticker:String,amount:f64)->Result<bool>{
         if self.wallet.network() == Network::Bitcoin {
