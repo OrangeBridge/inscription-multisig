@@ -8,7 +8,7 @@ use bdk::bitcoin::{PrivateKey, PublicKey, Network};
 use bdk::keys::GeneratableDefaultOptions;
 use bdk::keys::GeneratedKey;
 use bdk::miniscript;
-
+pub use bdk;
 pub fn generate_tap_prvkey()-> Result<PrivateKey, Box<dyn std::error::Error>>{
     let private_key: GeneratedKey<_, miniscript::Tap> = PrivateKey::generate_default()?;
     let private_key = private_key.into_key();
