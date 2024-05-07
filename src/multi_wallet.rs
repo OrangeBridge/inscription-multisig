@@ -196,11 +196,11 @@ impl MultiWallet {
         .ordering(TxOrdering::Untouched)
         .policy_path(path, KeychainKind::External)
         .add_utxo(utxo.outpoint)?
-        .unspendable(self.unspendable.clone())
         .add_recipient(to.script_pubkey(), utxo.txout.value)
         .fee_absolute(0)
         .enable_rbf()
-        .sighash(PsbtSighashType::from_u32(0x83));
+        .sighash(PsbtSighashType::from_u32(0x83))
+        .manually_selected_only();
         let (mut psbt, _details) = tx_builder.finish()?;
         Ok((psbt, _details))
     }
@@ -229,49 +229,6 @@ impl MultiWallet {
             bail!("could not estimat gas fee")
         }
     }
-    
-    pub fn transfer_insc_psbt(&self,inscription:Inscription,to:Address)->Result<PartiallySignedTransaction>{
-        let satpoint = SatPoint::from_str(inscription.location.as_str())?;  
-    
-        let utxo = self.get_utxo(inscription.location)?;
-
-        let prev_tx_id = Txid::from_str(satpoint.outpoint.txid.to_string().as_str()).unwrap();
-        let prev_out_index =  satpoint.outpoint.vout; 
-        let prev_out_script = utxo.txout.script_pubkey;
-        let prev_out_value = utxo.txout.value; // 0.01127776 BTC
-
-
-        let recipient_script = to.script_pubkey();
-        let transfer_amount = prev_out_value; 
-
-        let input = TxIn {
-            previous_output: OutPoint::new(prev_tx_id, prev_out_index),
-            script_sig: Script::new(),
-            sequence: bdk::bitcoin::Sequence(0xFFFFFFFD),
-            witness:Witness::new(),
-        };
-
-        let recipient_output = TxOut {
-            value: transfer_amount,
-            script_pubkey: recipient_script,
-        };
-        let transaction = Transaction {
-            version: 2,
-            lock_time: bdk::bitcoin::PackedLockTime(0),
-            input: vec![input],
-            output: vec![recipient_output],
-        };
-
-        
-        let mut psbt = PartiallySignedTransaction::from_unsigned_tx(transaction).unwrap();
-        // temp sol if works remove and set gas to none
-        psbt.inputs[0].witness_utxo = Some(TxOut {
-            value: prev_out_value,
-            script_pubkey: prev_out_script,
-        });
-        return  Ok(psbt);
-    }
-
     pub fn update_unspendable(&self,outpoint:OutPoint)->Result<()>{
         let db_tree = self.db.open_tree(format!("{}_unspendable",self.wallet_name)).unwrap();
         let mut unspendable:Vec<OutPoint> = vec![];
@@ -381,13 +338,13 @@ async fn inscribe_brc_transfer(){
     let wallet = MultiWallet::new(
         2,
         vec![
-            "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
-            "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
-            "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
+            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
         ],
         "./wallet_test".to_string(),
-        Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
+        Network::Regtest,
+        "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),
@@ -416,13 +373,13 @@ async fn xfer_insc_psbt(){
     let wallet = MultiWallet::new(
         2,
         vec![
-            "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
-            "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
-            "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
+            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
         ],
         "./wallet_test".to_string(),
-        Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
+        Network::Regtest,
+        "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),
@@ -432,11 +389,11 @@ async fn xfer_insc_psbt(){
     match wallet {
         Ok(mut wallet) => {
             let ins = Inscription{
-                id:"02eb5eb752b69128abe327aa73a3b3139f2a9e7d4975c0c7b607e1c0899739aei0".to_string(),
-                location:"02eb5eb752b69128abe327aa73a3b3139f2a9e7d4975c0c7b607e1c0899739ae:0:0".to_string()
+                id:"9424e55d525f0f15cc07e7a531efa8f19fbd8b26ee85c43ad75dad9b58dd4f2fi0".to_string(),
+                location:"9424e55d525f0f15cc07e7a531efa8f19fbd8b26ee85c43ad75dad9b58dd4f2f:0:0".to_string()
             };
             let to = Address::from_str("bc1p9fauj3clzhglv50h0vq85c5kd8xp3yd7g80dcd9svpw9g7v87pjsn2n92f").ok().unwrap();
-            let psbt = wallet.transfer_insc_zero_fee(ins,to).await;
+            let psbt = wallet.transfer_insc_no_gas(ins,to).await;
             match  psbt {
                 Ok(psbt) => {
                     print!("psbt:{}",psbt.0);  
