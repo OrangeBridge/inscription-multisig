@@ -8,6 +8,7 @@ use bdk::blockchain::{ Blockchain, RpcBlockchain};
 use bdk::wallet::AddressIndex;
 use serde::{Deserialize, Serialize};
 
+use std::clone;
 use std::fs::remove_file;
 use std::str::FromStr;
 use std::{
@@ -27,11 +28,13 @@ pub struct OrdClient {
     auth: Auth,
     network: Network,
 }
+#[derive(Clone)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Inscription {
     pub id: String,
     pub location: String,
 }
+#[derive(Clone)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InscribeOutput {
     pub commit: String,
@@ -41,6 +44,7 @@ pub struct InscribeOutput {
     pub reveal_psbt: Option<serde_json::Value>,
     pub total_fees: u128,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RecieveOutput {
     pub address:String
