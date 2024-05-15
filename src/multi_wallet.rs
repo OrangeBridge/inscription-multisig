@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use bdk::bitcoin::blockdata::witness;
 use bdk::bitcoin::psbt::{self, PartiallySignedTransaction, Psbt, PsbtSighashType};
 use bdk::bitcoin::secp256k1::Secp256k1;
-use bdk::bitcoin::{Address, Network, OutPoint, PrivateKey, Script, Transaction, TxIn, TxOut, Txid, Witness};
+use bdk::bitcoin::{Address, EcdsaSighashType, Network, OutPoint, PrivateKey, Script, SigHashType, Transaction, TxIn, TxOut, Txid, Witness};
 use bdk::bitcoincore_rpc::json::Utxo;
 use bdk::blockchain::rpc::{Auth, RpcBlockchain, RpcSyncParams};
 use bdk::blockchain::{Blockchain, ElectrumBlockchain, GetTx, RpcConfig};
@@ -192,6 +192,7 @@ impl MultiWallet {
         let mut tx_builder = self.wallet.build_tx().coin_selection(LargestFirstCoinSelection);
         let _ = self.sync();
         let utxo: LocalUtxo = self.get_utxo(inscription.location)?;
+        let sighash_flag = EcdsaSighashType::SinglePlusAnyoneCanPay;
         tx_builder
         .ordering(TxOrdering::Untouched)
         .policy_path(path, KeychainKind::External)
@@ -199,7 +200,7 @@ impl MultiWallet {
         .add_recipient(to.script_pubkey(), utxo.txout.value)
         .fee_absolute(0)
         .enable_rbf()
-        .sighash(PsbtSighashType::from_u32(0x83))
+        .sighash(PsbtSighashType::from(sighash_flag))
         .manually_selected_only();
         let (mut psbt, _details) = tx_builder.finish()?;
         Ok((psbt, _details))
@@ -414,13 +415,13 @@ async fn sign_psbt(){
     let wallet = MultiWallet::new(
         2,
         vec![
-            "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
-            "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
-            "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
+            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
         ],
         "./wallet_test".to_string(),
-        Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
+        Network::Regtest,
+        "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),
@@ -429,8 +430,8 @@ async fn sign_psbt(){
     ).await;
     match wallet {
         Ok(mut wallet) => {
-               let mut _psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAq45l4nA4Qe2x8B1SX2eKp8Ts6NzqifjqyiRtlK3XusCAAAAAAD9////E/HtvqOBA2ze26fqhMhDUZOM44+g/wQv96HyHCflv1kAAAAAAP3///8CIgIAAAAAAAAiUSAqe8lHHxXR9lH3ewB6YpZpzBiRvkHe3DSwYFxUeYfwZQObAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3j40wwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3giFcECAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijOsIJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXguiCT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YILpSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRaT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YICUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpw4HqXhIRZwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKMyUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpwc6RVDIRaUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4CUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpzYt2h3ARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnAABAStAnAAAAAAAACJRIF0uvROIbIDKTvJU//yKtM41J8YwytNddRtsJTO7VjN4IhXBAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJpIHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozrCCUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4Logk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCC6UpzAIRYCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEWk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEWcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEWlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwEXIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICARgg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpwAAAEFIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAQZrAMBoIHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozrCCUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4Logk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCC6UpwhBwICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIQeT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YICUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpw4HqXhIQdwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKMyUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpwc6RVDIQeUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4CUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpzYt2h3AA==").unwrap();
-               let private_key = PrivateKey::from_str("L5WuqadbjUzNoM1HSDNRonQzHt88VAFFdUiWkHDsCZ9hCAuNiQDC").ok().unwrap();
+               let mut _psbt = PartiallySignedTransaction::from_str("cHNidP8BAF4BAAAAAS9P3VibrV3XOsSF7iaLvZ/xqO8xpecHzBUPX1Jd5SSUAAAAAAD9////ASICAAAAAAAAIlEgKnvJRx8V0fZR93sAemKWacwYkb5B3tw0sGBcVHmH8GWIAQAAAAEBKyICAAAAAAAAIlEgUfeAHSzyahK/PquvEnW+iZ6KZrqhOxQOIkbWxQBmD4gBAwSDAAAAIhXAAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJpINu+UCuppxEMHC3A3S8vxx6hI7MHghwswmU/9JLTk9SxrCBCXtQVsawKAiBOeadCPFtHa/W9KB9l+Qn6EuAOHktUI7og6Z8muBOhVqJk7Tqf5Ibow+7Uw6bmKQQ4YsubUIMgOwS6UpzAIRYCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEW6Z8muBOhVqJk7Tqf5Ibow+7Uw6bmKQQ4YsubUIMgOwQlAUnSvJcGXdDvsy1kgriEuOaY8v8xYqln04y5bT20QykPxmoW3CEWQl7UFbGsCgIgTnmnQjxbR2v1vSgfZfkJ+hLgDh5LVCMlAUnSvJcGXdDvsy1kgriEuOaY8v8xYqln04y5bT20QykPfR05HiEW275QK6mnEQwcLcDdLy/HHqEjsweCHCzCZT/0ktOT1LElAUnSvJcGXdDvsy1kgriEuOaY8v8xYqln04y5bT20QykP4sPiGwEXIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICARggSdK8lwZd0O+zLWSCuIS45pjy/zFiqWfTjLltPbRDKQ8AAA==").unwrap();
+               let private_key = PrivateKey::from_str("L3N4MNqUBBsG9BGdPbJGv4ZYCwhdTAW2K6aLNebHHH2toePuKTYF").ok().unwrap();
                let signer = SignerWrapper::new(private_key, SignerContext::Tap { is_internal_key: false });
 
                wallet.wallet.add_signer(
@@ -438,7 +439,11 @@ async fn sign_psbt(){
                    SignerOrdering(0),
                    Arc::new(signer)
                );
-               let finalized = wallet.wallet.sign(&mut _psbt, SignOptions::default()).unwrap();
+               let sighash_flag = EcdsaSighashType::SinglePlusAnyoneCanPay;
+               let mut options = SignOptions::default();
+               options.allow_all_sighashes =true;
+              
+               let finalized = wallet.wallet.sign(&mut _psbt, options).unwrap();
                println!(" status:{} psbt_signed:{}", finalized,_psbt);
         }
         Err(err) => println!("{}", err),
