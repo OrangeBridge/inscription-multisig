@@ -77,7 +77,7 @@ impl MultiWallet {
         let dummy_internal =
             "020202020202020202020202020202020202020202020202020202020202020202".to_string();
         let descriptor = Descriptor::new_tr(dummy_internal, Some(first_tap_leaf))?;
-        println!("{} descriptor", descriptor);
+        // println!("{} descriptor", descriptor);
 
         let wallet_name = wallet_name_from_descriptor(
             descriptor.to_string().as_str(),
@@ -237,7 +237,7 @@ impl MultiWallet {
             unspendable= bincode::deserialize(&utxo_vec)?;
             unspendable.push(outpoint);
             
-            println!("UTXO: {:?}", unspendable);
+            // println!("UTXO: {:?}", unspendable);
         }
         else {
             unspendable = vec![outpoint];

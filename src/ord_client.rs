@@ -77,7 +77,7 @@ impl OrdClient {
         args.extend(["wallet".to_string(),"create".to_string()]);
         let result  = self.run(args);
         if let Ok(r) = result{
-            println!("result {}",r);
+            // println!("result {}",r);
         }
         else{
         }
@@ -211,7 +211,7 @@ impl AddArgs for Vec<String> {
                 Ok(res) => {
                     if res.status().is_success() {
                         let fee = res.json::<MempoolFeeRate>().await.unwrap();
-                        println!("fee {}",fee.fastestFee);
+                        // println!("fee {}",fee.fastestFee);
                         self.push(fee.fastestFee.to_string());
                         return ;
                     } 
@@ -219,7 +219,7 @@ impl AddArgs for Vec<String> {
                 Err(_) => {}
             }
             if let Ok(fee) = blockchain.estimate_fee(1) {
-                println!("fee {}",fee.as_sat_per_vb().to_string());
+                // println!("fee {}",fee.as_sat_per_vb().to_string());
                 self.push(fee.as_sat_per_vb().to_string());
             } else  {
                 panic!("could not estimat gas fee")
