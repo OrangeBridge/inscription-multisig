@@ -301,13 +301,13 @@ pub async fn test_getWallet() {
     let wallet = MultiWallet::new(
         2,
         vec![
-            "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
-            "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
-            "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
+            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
         ],
         "./wallet_test".to_string(),
-        Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
+        Network::Regtest,
+        "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),

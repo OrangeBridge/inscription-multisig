@@ -173,9 +173,9 @@ impl AddArgs for Vec<String> {
         match auth {
             Auth::UserPass { username, password } => {
                 _args = vec![
-                    "--bitcoin-rpc-user".to_string(),
+                    "--bitcoin-rpc-username".to_string(),
                     username.clone(),
-                    "--bitcoin-rpc-pass".to_string(),
+                    "--bitcoin-rpc-password".to_string(),
                     password.clone(),
                 ];
             }
