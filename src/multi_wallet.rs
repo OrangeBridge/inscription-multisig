@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Error, Result};
 use bdk::bitcoin::blockdata::witness;
 use bdk::bitcoin::hashes::sha256d::Hash;
 use bdk::bitcoin::policy::get_virtual_tx_size;
@@ -190,7 +190,7 @@ impl MultiWallet {
      * create a psbt to transfer inscription
      */
     // ##todo 
-    pub async fn transfer_insc_with_fee(&self,inscription:Inscription,to:Address,fee_utxos:Vec<FeeUtxo>)->Result<(Psbt, TransactionDetails)> {
+    pub async fn transfer_insc_with_witness_fee(&self,inscription:Inscription,to:Address,fee_utxos:Vec<FeeUtxo>)->Result<(Psbt, TransactionDetails)> {
         let wallet_policy = self.wallet.policies(KeychainKind::External)?.unwrap();
         let feeRate = self.fee_rate_sat_vb().await?;
         let mut path = BTreeMap::new();
@@ -216,7 +216,51 @@ impl MultiWallet {
         let (fee_utxos,fee,covered) = select_fee_utxo(fee_utxos, size, fee_rate)?;
         for utxo in fee_utxos{
             let mut input = Input::default();
+            let sighash_flag = EcdsaSighashType::All;
             input.witness_utxo = Some(utxo.tx_out);
+            input.sighash_type =Some(PsbtSighashType::from(sighash_flag));
+            tx_builder.add_foreign_utxo(utxo.outpoint, input,100)?;
+        }
+        if(covered> fee){
+            tx_builder.add_recipient(to.script_pubkey(), covered-fee).fee_absolute(fee);
+        }
+        println!("covered:{} fee:{}",covered,fee);
+        let (mut psbt, _details) = tx_builder.finish()?;
+        Ok((psbt, _details))
+    }
+    pub async fn transfer_insc_with_non_witness_fee(&self,inscription:Inscription,to:Address,fee_utxos:Vec<FeeUtxo>)->Result<(Psbt, TransactionDetails)> {
+        let wallet_policy = self.wallet.policies(KeychainKind::External)?.unwrap();
+        let feeRate = self.fee_rate_sat_vb().await?;
+        let mut path = BTreeMap::new();
+        path.insert(wallet_policy.id, vec![1]);
+
+        let fee_rate = self.fee_rate_sat_vb().await?;
+
+        let mut tx_builder = self.wallet.build_tx().coin_selection(LargestFirstCoinSelection);
+        let _ = self.sync();
+
+       
+        let utxo: LocalUtxo = self.get_utxo(inscription.location)?;
+        let tx = self.blockchain.get_tx(&utxo.outpoint.txid)?.ok_or( Error::msg("failed to fetch tx"))?;
+        
+        let sighash_flag = EcdsaSighashType::SinglePlusAnyoneCanPay;
+        tx_builder
+        .ordering(TxOrdering::Untouched)
+        .policy_path(path, KeychainKind::External)
+        .add_utxo(utxo.outpoint)?
+        .add_recipient(to.script_pubkey(), utxo.txout.value)
+        .fee_absolute(0)
+        .enable_rbf()
+        .sighash(PsbtSighashType::from(sighash_flag))
+        .manually_selected_only();
+        let (mut psbt, _details) = tx_builder.clone().finish()?;
+        let size = psbt.extract_tx().size();     
+        let (fee_utxos,fee,covered) = select_fee_utxo(fee_utxos, size, fee_rate)?;
+        for utxo in fee_utxos{
+            let mut input = Input::default();
+            let sighash_flag = EcdsaSighashType::All;
+            input.non_witness_utxo = Some(tx.clone());
+            input.sighash_type =Some(PsbtSighashType::from(sighash_flag));
             tx_builder.add_foreign_utxo(utxo.outpoint, input,100)?;
         }
         if(covered> fee){
@@ -439,7 +483,7 @@ async fn xfer_insc_psbt(){
                 tx_out:tx_out2,
                 weight:100
             };
-            let psbt = wallet.transfer_insc_with_fee(ins,to,vec![fee1,fee2]).await;
+            let psbt = wallet.transfer_insc_with_witness_fee(ins,to,vec![fee1,fee2]).await;
             match  psbt {
                 Ok(psbt) => {
                     println!("psbt:{}",psbt.0);  
