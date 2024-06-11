@@ -216,9 +216,7 @@ impl MultiWallet {
         let (fee_utxos,fee,covered) = select_fee_utxo(fee_utxos, size, fee_rate)?;
         for utxo in fee_utxos{
             let mut input = Input::default();
-            let sighash_flag = EcdsaSighashType::All;
             input.witness_utxo = Some(utxo.tx_out);
-            input.sighash_type =Some(PsbtSighashType::from(sighash_flag));
             tx_builder.add_foreign_utxo(utxo.outpoint, input,100)?;
         }
         if(covered> fee){
@@ -258,9 +256,8 @@ impl MultiWallet {
         let (fee_utxos,fee,covered) = select_fee_utxo(fee_utxos, size, fee_rate)?;
         for utxo in fee_utxos{
             let mut input = Input::default();
-            let sighash_flag = EcdsaSighashType::All;
             input.non_witness_utxo = Some(tx.clone());
-            input.sighash_type =Some(PsbtSighashType::from(sighash_flag));
+
             tx_builder.add_foreign_utxo(utxo.outpoint, input,100)?;
         }
         if(covered> fee){
@@ -439,11 +436,13 @@ async fn xfer_insc_psbt(){
     let wallet = MultiWallet::new(
         2,
         vec![
-            
+            "022a901525c907899a43c101cc21c11cc03e1f122e7e6845303e98e73dfc73cd71".to_string(),
+            "0384ed0788ee7d463d7e3c9f05761da775518d3262f2a54bcca38c9b85cd1b4a7c".to_string(),
+            "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()          
         ],
         "./wallet_test".to_string(),
         Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
+        "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),
@@ -507,13 +506,13 @@ async fn sign_psbt(){
     let wallet = MultiWallet::new(
         2,
         vec![
-            "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
-            "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
-            "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string()
+            "022a901525c907899a43c101cc21c11cc03e1f122e7e6845303e98e73dfc73cd71".to_string(),
+            "0384ed0788ee7d463d7e3c9f05761da775518d3262f2a54bcca38c9b85cd1b4a7c".to_string(),
+            "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()
         ],
         "./wallet_test".to_string(),
-        Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
+        Network::Regtest,
+        "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),

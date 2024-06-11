@@ -33,7 +33,7 @@ fn get_priv_key(){
 
 #[test]
 fn test_pubkey(){
-    let priv_key = PrivateKey::from_wif("L3gEF529Rq1Zg6NdWTBFX3BmveNXdAs9xjYuzuamZWgLaMhVGnh3");
+    let priv_key = PrivateKey::from_wif("L11nWVMfXE5txy2zzc1T9ieR8kh2VoWVTmTVV3hvKLBgm4RXNhyV");
     match priv_key {
         Ok(priv_key) =>{
             let pub_key = get_pub_key(priv_key);
