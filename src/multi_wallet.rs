@@ -15,7 +15,7 @@ use bdk::miniscript::psbt::PsbtExt;
 use bdk::miniscript::Descriptor;
 
 use bdk::psbt::PsbtUtils;
-use bdk::signer::{SignerContext, SignerOrdering, SignerWrapper};
+use bdk::signer::{InputSigner, SignerContext, SignerOrdering, SignerWrapper};
 use bdk::sled::{self, Db, Tree};
 
 use bdk::blockchain::ConfigurableBlockchain;
@@ -209,7 +209,6 @@ impl MultiWallet {
         .add_recipient(to.script_pubkey(), utxo.txout.value)
         .fee_absolute(0)
         .enable_rbf()
-        .sighash(PsbtSighashType::from(sighash_flag))
         .manually_selected_only();
         let (mut psbt, _details) = tx_builder.clone().finish()?;
         let size = psbt.extract_tx().size();     
@@ -271,7 +270,7 @@ impl MultiWallet {
     pub async fn fee_rate_sat_vb(&self)-> Result<f32>{
         let network = self.wallet.network();
         if network == Network::Regtest{
-            return Ok(1.0);
+            return Ok(10.0);
         }
         else if network == Network::Bitcoin{
             let res = reqwest::get("https://mempool.space/api/v1/fees/recommended").await;
@@ -509,19 +508,16 @@ async fn sign_psbt(){
     ).await;
     match wallet {
         Ok(mut wallet) => {
-               let mut _psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAArsi69ZL5b2/nx11esw6IaAK5DJ3HAPBJOoDwgeEjThJAAAAAAD9////16VtHYeie5T7BO9GU2mhS5WldB2DK/Iy65SQkWVn8z0BAAAAAP3///8CIgIAAAAAAAAiUSDbr4Kl8zZ/KgDS0zx6z3v4MBzpvWvYKD/1GLzg6JFsdUjKAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hc5gwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3gBAwSDAAAAIhXBAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJpIHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozrCCUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4Logk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCC6UpzAIRYCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEWk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEWcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEWlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwEXIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICARgg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpwAAQErSMoAAAAAAAAiUSDbr4Kl8zZ/KgDS0zx6z3v4MBzpvWvYKD/1GLzg6JFsdQAAAQUgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBBmsAwGggcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijOsIJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXguiCT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YILpSnCEHAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhB5P0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhB3Ay1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhB5Rp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcA").unwrap();
-               let private_key = PrivateKey::from_str("").ok().unwrap();
-               let signer = SignerWrapper::new(private_key, SignerContext::Tap { is_internal_key: false });
-
-               wallet.wallet.add_signer(
-                   KeychainKind::External,
-                   SignerOrdering(0),
-                   Arc::new(signer)
-               );
+               let mut _psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/ulISBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknwiFcACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgKpAVJckHiZpDwQHMIcEcwD4fEi5+aEUwPpjnPfxzzXGsIITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8uiCSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe67pSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRYqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcSUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PiGVEKcIRaE7QeI7n1GPX48nwV2Had1UY0yYvKlS8yjjJuFzRtKfCUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0Pj5F0LGIRaSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe6yUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PjhBtxBARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+AABASvmGQYAAAAAACJRIP4QiDsSqJ2lxRBGU0mHDMyt91H03N+T+7IyO7tDgn+6AAAA").unwrap();
+               let private_key = PrivateKey::from_str("L11nWVMfXE5txy2zzc1T9ieR8kh2VoWVTmTVV3hvKLBgm4RXNhyV").ok().unwrap();
+               let signer = SignerWrapper::new(private_key, SignerContext::Tap { is_internal_key: true });
+               let secp = Secp256k1::new();
+             
                let sighash_flag = EcdsaSighashType::SinglePlusAnyoneCanPay;
                let mut options = SignOptions::default();
                options.allow_all_sighashes =true;
                options.trust_witness_utxo = true;
+               let fin = signer.sign_input(&mut _psbt, 1, &options, &secp).unwrap();
                let finalized = wallet.wallet.sign(&mut _psbt, options).unwrap();
                println!(" status:{} psbt_signed:{}", finalized,_psbt);
         }
@@ -534,13 +530,13 @@ async fn combine_broadcast(){
     let wallet = MultiWallet::new(
         2,
         vec![
-            "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
-            "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
-            "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
+            "022a901525c907899a43c101cc21c11cc03e1f122e7e6845303e98e73dfc73cd71".to_string(),
+            "0384ed0788ee7d463d7e3c9f05761da775518d3262f2a54bcca38c9b85cd1b4a7c".to_string(),
+            "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()
         ],
         "./wallet_test".to_string(),
-        Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
+        Network::Regtest,
+        "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),
@@ -549,11 +545,12 @@ async fn combine_broadcast(){
     ).await;
     match wallet {
         Ok(wallet) => {
-            let mut base_psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAq45l4nA4Qe2x8B1SX2eKp8Ts6NzqifjqyiRtlK3XusCAAAAAAD9////E/HtvqOBA2ze26fqhMhDUZOM44+g/wQv96HyHCflv1kAAAAAAP3///8CIgIAAAAAAAAiUSAqe8lHHxXR9lH3ewB6YpZpzBiRvkHe3DSwYFxUeYfwZQObAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3j40wwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3giFcECAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijOsIJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXguiCT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YILpSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRaT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YICUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpw4HqXhIRZwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKMyUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpwc6RVDIRaUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4CUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpzYt2h3ARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnAABAStAnAAAAAAAACJRIF0uvROIbIDKTvJU//yKtM41J8YwytNddRtsJTO7VjN4IhXBAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJpIHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozrCCUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4Logk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCC6UpzAIRYCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEWk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEWcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEWlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwEXIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICARgg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpwAAAEFIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAQZrAMBoIHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozrCCUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4Logk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCC6UpwhBwICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIQeT9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YICUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpw4HqXhIQdwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKMyUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0Rlpwc6RVDIQeUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4CUB24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpzYt2h3AA==").unwrap();
+            let mut base_psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/uiQZBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknwiFcACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgKpAVJckHiZpDwQHMIcEcwD4fEi5+aEUwPpjnPfxzzXGsIITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8uiCSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe67pSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRYqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcSUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PiGVEKcIRaE7QeI7n1GPX48nwV2Had1UY0yYvKlS8yjjJuFzRtKfCUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0Pj5F0LGIRaSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe6yUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PjhBtxBARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+AABASvmGQYAAAAAACJRIP4QiDsSqJ2lxRBGU0mHDMyt91H03N+T+7IyO7tDgn+6AAAA").unwrap();
             let signed_psbts = vec![
                  // TODO: Paste each participant's PSBT here
-                 "cHNidP8BALIBAAAAAq45l4nA4Qe2x8B1SX2eKp8Ts6NzqifjqyiRtlK3XusCAAAAAAD9////E/HtvqOBA2ze26fqhMhDUZOM44+g/wQv96HyHCflv1kAAAAAAP3///8CIgIAAAAAAAAiUSAqe8lHHxXR9lH3ewB6YpZpzBiRvkHe3DSwYFxUeYfwZQObAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3j40wwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2Ioz24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxARRoVmkL+sveMsj7R6iyPXzL0Y7WDVCdM9hYlbwQKPPCToySBaPzbnsIZYO6oWyNb3+Nj9Qvc3bi91tihNdUokyIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAEBK0CcAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2Ioz24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxArTFaduuc4dzmejdmAwvScZEMosugic73uw5MTxmmsPl2LtCduF8255BJgVt6VPo/I3F1CTyDCy7453CBK+Hy/iIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAABBSACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEGawDAaCBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcIQcCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEHk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEHcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEHlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwA=",
-                 "cHNidP8BALIBAAAAAq45l4nA4Qe2x8B1SX2eKp8Ts6NzqifjqyiRtlK3XusCAAAAAAD9////E/HtvqOBA2ze26fqhMhDUZOM44+g/wQv96HyHCflv1kAAAAAAP3///8CIgIAAAAAAAAiUSAqe8lHHxXR9lH3ewB6YpZpzBiRvkHe3DSwYFxUeYfwZQObAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3j40wwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxAizNkIn1FcBqiktX5TvOLxRk5iKQklW/jCZwQuUPniE0FQrl/M9Ry0P7MhbA+kD/imUtQ+TW80X5jXfOKeR5kISIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAEBK0CcAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxADFfsqur7pY++eW9rMNAI0AJuFtSfydNYnVq7wOQtNGL5IZGUHXDLNw4i8NH7acA87mySOTekGOuPvD6c5OW0uSIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAABBSACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEGawDAaCBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcIQcCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEHk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEHcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEHlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwA="
+                 "cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/uiQZBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknxBFCqQFSXJB4maQ8EBzCHBHMA+HxIufmhFMD6Y5z38c81x3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PhA+BZeXkN/JVqy5I+ptvHN85zoBuOxypHUuP0qdn4tDMpfUnXiXhQuitzqw/q2WvpqnSJ8s7IrQCSbSUfwqeyBRSIVwAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSAqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcawghO0HiO59Rj1+PJ8Fdh2ndVGNMmLypUvMo4ybhc0bSny6IJK688PcG+KZMjD36qV0KztcOLKmcjdQvbauFe56hZ7rulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFiqQFSXJB4maQ8EBzCHBHMA+HxIufmhFMD6Y5z38c81xJQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+IZUQpwhFoTtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8JQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+PkXQsYhFpK688PcG+KZMjD36qV0KztcOLKmcjdQvbauFe56hZ7rJQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+OEG3EEBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINztfWFK+gDslkDWqTl4If7cunoppLP3XbuxxvL5V9D4AAEBK+YZBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7oAAAA=",
+                 "cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/uiQZBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknxBFITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p83O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PhAr3qG0H1r0e8vueeUQkucH37PIUus8wgZZauvPMDMqnvdtIktdSg4KvphiL6JErpilycmX5uTJgG3jeeK6mvgJCIVwAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSAqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcawghO0HiO59Rj1+PJ8Fdh2ndVGNMmLypUvMo4ybhc0bSny6IJK688PcG+KZMjD36qV0KztcOLKmcjdQvbauFe56hZ7rulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFiqQFSXJB4maQ8EBzCHBHMA+HxIufmhFMD6Y5z38c81xJQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+IZUQpwhFoTtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8JQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+PkXQsYhFpK688PcG+KZMjD36qV0KztcOLKmcjdQvbauFe56hZ7rJQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+OEG3EEBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINztfWFK+gDslkDWqTl4If7cunoppLP3XbuxxvL5V9D4AAEBK+YZBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7oAAAA=",
+                 "cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/uiQZBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknwiFcACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgKpAVJckHiZpDwQHMIcEcwD4fEi5+aEUwPpjnPfxzzXGsIITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8uiCSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe67pSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRYqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcSUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PiGVEKcIRaE7QeI7n1GPX48nwV2Had1UY0yYvKlS8yjjJuFzRtKfCUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0Pj5F0LGIRaSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe6yUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PjhBtxBARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+AABASvmGQYAAAAAACJRIP4QiDsSqJ2lxRBGU0mHDMyt91H03N+T+7IyO7tDgn+6ARNAO/6EE3+eq9RcLg+M2duJnB6JF4s9YDROnnXjQWcVAgJVWu7BeUiQQ9Ydp+UOOpKL5WULxwy6d/fxPXZSLsPpTgAAAA=="
                  ];
         
             for psbt in signed_psbts {
@@ -576,78 +573,44 @@ async fn combine_broadcast(){
 
 }
 
-// // #[tokio::test]
-// // async fn test(){
-//     let wallet = MultiWallet::new(
-//         2,
-//         vec![
-//             "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
-//             "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
-//             "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
-//         ],
-//         "./wallet_test".to_string(),
-//         Network::Bitcoin,
-//         "http://127.0.0.1:8332".to_string(),
-//         Auth::UserPass {
-//             username: "user".to_string(),
-//             password: "pass".to_string(),
-//         },
-//         "https://api.hiro.so".to_string()
-//     ).await;
-//     match wallet {
-//         Ok(wallet) => {
-//             let mut base_psbt = PartiallySignedTransaction::from_str("cHNidP8BAF4BAAAAAd69M75rD3ywxe+2W8UzI43KrrBXZxK/RnoXp8di1/KIAAAAAAD9////ASICAAAAAAAAIlEg26+CpfM2fyoA0tM8es97+DAc6b1r2Cg/9Ri84OiRbHUf5gwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3gBAwSDAAAAIhXBAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJpIHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozrCCUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4Logk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCC6UpzAIRYCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEWk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEWcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEWlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwEXIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICARgg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpwAAA==").unwrap();
-//             let signed_psbts = vec![
-//                  // TODO: Paste each participant's PSBT here
-//                  "cHNidP8BAF4BAAAAAd69M75rD3ywxe+2W8UzI43KrrBXZxK/RnoXp8di1/KIAAAAAAD9////ASICAAAAAAAAIlEg26+CpfM2fyoA0tM8es97+DAc6b1r2Cg/9Ri84OiRbHUf5gwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3gBAwSDAAAAQRRwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM9uEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacQZLZjHL3SS37pF8XAoPSqPO5ws53AwFdtofdX8ftOWDVHpDlF+xiS/pjzevEYxxEwSFsGwDEkLEgTzIFXoIb1beDIhXBAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJpIHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozrCCUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4Logk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCC6UpzAIRYCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEWk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEWcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEWlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwEXIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICARgg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpwAAA==",
-//                  "cHNidP8BAF4BAAAAAd69M75rD3ywxe+2W8UzI43KrrBXZxK/RnoXp8di1/KIAAAAAAD9////ASICAAAAAAAAIlEg26+CpfM2fyoA0tM8es97+DAc6b1r2Cg/9Ri84OiRbHUf5gwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3gBAwSDAAAAQRST9EizFZNv49OGEP1h8V+JPD2K+NxNuurLNQk/gn5YINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacQbt1NZmQdPZIpVjIDj+VOx5BxMK4t9yjr3gigXZ2Fzn55mL/zr7zMIizFgQ4Lwn30PgJbI8PqqmrqR5NPDgSjguDIhXBAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgJpIHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozrCCUaelOYX+0Ibkpj+6w0/fpAZSLU2gDvel9p3Uv6QyV4Logk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCC6UpzAIRYCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEWk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEWcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEWlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwEXIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICARgg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpwAAA=="
-//                  ];
-        
-//             for psbt in signed_psbts {
-//                 let psbt = PartiallySignedTransaction::from_str(psbt).unwrap();
-//                 base_psbt.combine(psbt).ok();
-//             }
-        
-//             let secp = Secp256k1::new();
-        
-
-          
-
-
-//             let to = Address::from_str("bc1pt5ht6yugdjqv5nhj2nllez45ec6j033setf46agmdsjn8w6kxduqcu6feh").ok().unwrap();
-
-            
-//             let mut tx_builder = wallet.wallet.build_tx().coin_selection(LargestFirstCoinSelection);
-//             tx_builder
-//             .ordering(TxOrdering::Untouched)
-//             .add_foreign_utxo(outpoint,inpiut,100).unwrap()
-//             .add_recipient(to.script_pubkey(), 1)
-//             .fee_absolute(0)
-//             .enable_rbf().allow_dust(true)
-//             .manually_selected_only();
-        
-
-//             let (mut _psbt, _details) = tx_builder.finish().unwrap();
-//             println!("psbt_user:{}",_psbt);
-//             let _ = base_psbt.combine(_psbt.clone()).unwrap();
+#[tokio::test]
+async fn test(){
+    let wallet = MultiWallet::new(
+        2,
+        vec![
+            "037032d63a356a821804b204bc6fb6f768e160fefb36888edad296ab9f0ad88a33".to_string(),
+            "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
+            "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
+        ],
+        "./wallet_test".to_string(),
+        Network::Regtest,
+        "http://127.0.0.1:18443".to_string(),
+        Auth::UserPass {
+            username: "user".to_string(),
+            password: "pass".to_string(),
+        },
+        "https://api.hiro.so".to_string()
+    ).await;
+    match wallet {
+        Ok(wallet) => {
+            let mut base_psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/uiQZBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknwiFcACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgKpAVJckHiZpDwQHMIcEcwD4fEi5+aEUwPpjnPfxzzXGsIITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8uiCSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe67pSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRYqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcSUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PiGVEKcIRaE7QeI7n1GPX48nwV2Had1UY0yYvKlS8yjjJuFzRtKfCUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0Pj5F0LGIRaSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe6yUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PjhBtxBARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+AABASvmGQYAAAAAACJRIP4QiDsSqJ2lxRBGU0mHDMyt91H03N+T+7IyO7tDgn+6ARNAO/6EE3+eq9RcLg+M2duJnB6JF4s9YDROnnXjQWcVAgJVWu7BeUiQQ9Ydp+UOOpKL5WULxwy6d/fxPXZSLsPpTgAAAA==").unwrap();
            
-//             let psbt = base_psbt.finalize(&secp).unwrap();
-//             let finalized_tx = psbt.extract_tx();
-            
-//             println!("tx:{:#?}",finalized_tx);
-//             dbg!(finalized_tx.txid());
-//             let broadcast = wallet.blockchain.broadcast(&finalized_tx);
-//             match  broadcast {
-//                 Ok(_) => {println!(" succesfullt broadcasted")},
-//                 Err(err) =>{println!("error:{}",err)}
-//             }
-//         }
-//         Err(err) => println!("{}", err),
-//     }
+            let secp = Secp256k1::new();
+        
+            println!("tx:{:#?}",base_psbt.fee_rate());
+            // dbg!(finalized_tx.txid());
+            // let broadcast = wallet.blockchain.broadcast(&finalized_tx);
+            // match  broadcast {
+            //     Ok(_) => {println!(" succesfullt broadcasted")},
+            //     Err(err) =>{println!("error:{}",err)}
+            // }
+        }
+        Err(err) => println!("{}", err),
+    }
 
-//     let signed_psbts = vec![
-//         // TODO: Paste each participant's PSBT here
-//         "cHNidP8BALIBAAAAAq45l4nA4Qe2x8B1SX2eKp8Ts6NzqifjqyiRtlK3XusCAAAAAAD9////E/HtvqOBA2ze26fqhMhDUZOM44+g/wQv96HyHCflv1kAAAAAAP3///8CIgIAAAAAAAAiUSAqe8lHHxXR9lH3ewB6YpZpzBiRvkHe3DSwYFxUeYfwZQObAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3j40wwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2Ioz24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxARRoVmkL+sveMsj7R6iyPXzL0Y7WDVCdM9hYlbwQKPPCToySBaPzbnsIZYO6oWyNb3+Nj9Qvc3bi91tihNdUokyIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAEBK0CcAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2Ioz24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxArTFaduuc4dzmejdmAwvScZEMosugic73uw5MTxmmsPl2LtCduF8255BJgVt6VPo/I3F1CTyDCy7453CBK+Hy/iIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAABBSACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEGawDAaCBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcIQcCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEHk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEHcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEHlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwA=",
-//         "cHNidP8BALIBAAAAAq45l4nA4Qe2x8B1SX2eKp8Ts6NzqifjqyiRtlK3XusCAAAAAAD9////E/HtvqOBA2ze26fqhMhDUZOM44+g/wQv96HyHCflv1kAAAAAAP3///8CIgIAAAAAAAAiUSAqe8lHHxXR9lH3ewB6YpZpzBiRvkHe3DSwYFxUeYfwZQObAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3j40wwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxAizNkIn1FcBqiktX5TvOLxRk5iKQklW/jCZwQuUPniE0FQrl/M9Ry0P7MhbA+kD/imUtQ+TW80X5jXfOKeR5kISIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAEBK0CcAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxADFfsqur7pY++eW9rMNAI0AJuFtSfydNYnVq7wOQtNGL5IZGUHXDLNw4i8NH7acA87mySOTekGOuPvD6c5OW0uSIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAABBSACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEGawDAaCBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcIQcCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEHk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEHcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEHlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwA="
-//         ];
-// }
+    let signed_psbts = vec![
+        // TODO: Paste each participant's PSBT here
+        "cHNidP8BALIBAAAAAq45l4nA4Qe2x8B1SX2eKp8Ts6NzqifjqyiRtlK3XusCAAAAAAD9////E/HtvqOBA2ze26fqhMhDUZOM44+g/wQv96HyHCflv1kAAAAAAP3///8CIgIAAAAAAAAiUSAqe8lHHxXR9lH3ewB6YpZpzBiRvkHe3DSwYFxUeYfwZQObAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3j40wwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2Ioz24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxARRoVmkL+sveMsj7R6iyPXzL0Y7WDVCdM9hYlbwQKPPCToySBaPzbnsIZYO6oWyNb3+Nj9Qvc3bi91tihNdUokyIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAEBK0CcAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFHAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2Ioz24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxArTFaduuc4dzmejdmAwvScZEMosugic73uw5MTxmmsPl2LtCduF8255BJgVt6VPo/I3F1CTyDCy7453CBK+Hy/iIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAABBSACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEGawDAaCBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcIQcCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEHk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEHcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEHlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwA=",
+        "cHNidP8BALIBAAAAAq45l4nA4Qe2x8B1SX2eKp8Ts6NzqifjqyiRtlK3XusCAAAAAAD9////E/HtvqOBA2ze26fqhMhDUZOM44+g/wQv96HyHCflv1kAAAAAAP3///8CIgIAAAAAAAAiUSAqe8lHHxXR9lH3ewB6YpZpzBiRvkHe3DSwYFxUeYfwZQObAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3j40wwAAAEBKyICAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxAizNkIn1FcBqiktX5TvOLxRk5iKQklW/jCZwQuUPniE0FQrl/M9Ry0P7MhbA+kD/imUtQ+TW80X5jXfOKeR5kISIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAEBK0CcAAAAAAAAIlEgXS69E4hsgMpO8lT//Iq0zjUnxjDK0111G2wlM7tWM3hBFJRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXg24QjbndrGwc/1V/9+yJTNf+LWTWUWkraHgGx7v0RlpxADFfsqur7pY++eW9rMNAI0AJuFtSfydNYnVq7wOQtNGL5IZGUHXDLNw4i8NH7acA87mySOTekGOuPvD6c5OW0uSIVwQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFpP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnDgepeEhFnAy1jo1aoIYBLIEvG+292jhYP77NoiO2tKWq58K2IozJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnBzpFUMhFpRp6U5hf7QhuSmP7rDT9+kBlItTaAO96X2ndS/pDJXgJQHbhCNud2sbBz/VX/37IlM1/4tZNZRaStoeAbHu/RGWnNi3aHcBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINuEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacAAABBSACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEGawDAaCBwMtY6NWqCGASyBLxvtvdo4WD++zaIjtrSlqufCtiKM6wglGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleC6IJP0SLMVk2/j04YQ/WHxX4k8PYr43E266ss1CT+CflggulKcIQcCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgUAUYFPECEHk/RIsxWTb+PThhD9YfFfiTw9ivjcTbrqyzUJP4J+WCAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacOB6l4SEHcDLWOjVqghgEsgS8b7b3aOFg/vs2iI7a0parnwrYijMlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZacHOkVQyEHlGnpTmF/tCG5KY/usNP36QGUi1NoA73pfad1L+kMleAlAduEI253axsHP9Vf/fsiUzX/i1k1lFpK2h4Bse79EZac2LdodwA="
+        ];
+}
