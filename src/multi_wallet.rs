@@ -278,7 +278,7 @@ impl MultiWallet {
                 Ok(res) => {
                     if res.status().is_success() {
                         let fee = res.json::<MempoolFeeRate>().await?;
-                        return Ok(fee.fastestFee);
+                        return Ok(fee.fastestFee +5.0);
                     } 
                 }
                 Err(_) => {}
