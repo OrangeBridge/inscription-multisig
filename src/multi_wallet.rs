@@ -401,9 +401,9 @@ async fn inscribe_brc_transfer(){
     let wallet = MultiWallet::new(
         2,
         vec![
-            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
-            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
-            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
+            "022a901525c907899a43c101cc21c11cc03e1f122e7e6845303e98e73dfc73cd71".to_string(),
+            "0384ed0788ee7d463d7e3c9f05761da775518d3262f2a54bcca38c9b85cd1b4a7c".to_string(),
+            "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()  
         ],
         "./wallet_test".to_string(),
         Network::Regtest,
@@ -441,7 +441,7 @@ async fn xfer_insc_psbt(){
             "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()          
         ],
         "./wallet_test".to_string(),
-        Network::Bitcoin,
+        Network::Regtest,
         "http://127.0.0.1:18443".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
@@ -452,24 +452,17 @@ async fn xfer_insc_psbt(){
     match wallet {
         Ok(mut wallet) => {
             let ins = Inscription{
-                id:"49388d8407c203ea24c1031c7732e40aa0213acc7a751d9fbfbde54bd6eb22bbi0".to_string(),
-                location:"49388d8407c203ea24c1031c7732e40aa0213acc7a751d9fbfbde54bd6eb22bb:0:0".to_string()
+                id:"bf568aab915f45de604bc55c92c8665298bb8a82204fee1678e9cd3fe41bb7bdi0".to_string(),
+                location:"bf568aab915f45de604bc55c92c8665298bb8a82204fee1678e9cd3fe41bb7bd:0:0".to_string()
             };
-            let to = Address::from_str("bc1pmwhc9f0nxelj5qxj6v784nmmlqcpe6dad0vzs0l4rz7wp6y3d36seytgv6").ok().unwrap();
+            let to = Address::from_str("bcrt1plcggswcj4zw6t3gsgef5npcvejklw505mn0e87ajxgamksuz07aqg8qt9v").ok().unwrap();
             
             let tx_out = TxOut{
-                value:51784, script_pubkey: 
-                Script::from_str("5120dbaf82a5f3367f2a00d2d33c7acf7bf8301ce9bd6bd8283ff518bce0e8916c75").unwrap()
+                value:399846, script_pubkey: 
+                Script::from_str("5120fe10883b12a89da5c510465349870cccadf751f4dcdf93fbb2323bbb43827fba").unwrap()
             };
-            let txid: Txid = Txid::from_str("3df36765919094eb32f22b831d74a5954ba1695346ef04fb947ba2871d6da5d7").unwrap();
+            let txid: Txid = Txid::from_str("eae5de65dc0d152600b94885701f769975947d8f18bbd9138acc9727af1d6047").unwrap();
             let outpoint= OutPoint::new(txid, 1);
-
-            let tx_out2 = TxOut{
-                value:3552, script_pubkey: 
-                Script::from_str("5120dbaf82a5f3367f2a00d2d33c7acf7bf8301ce9bd6bd8283ff518bce0e8916c75").unwrap()
-            };
-            let txid2: Txid = Txid::from_str("5dbb37539d85dacbcf5644e41dc11a2d0b90b1c67b4985e45060024929a54f97").unwrap();
-            let outpoint2= OutPoint::new(txid, 1);
 
 
             let fee1 = FeeUtxo{
@@ -477,12 +470,7 @@ async fn xfer_insc_psbt(){
                 tx_out:tx_out,
                 weight:100
             };
-            let fee2 = FeeUtxo{
-                outpoint:outpoint2,
-                tx_out:tx_out2,
-                weight:100
-            };
-            let psbt = wallet.transfer_insc_with_witness_fee(ins,to,vec![fee1,fee2]).await;
+            let psbt = wallet.transfer_insc_with_witness_fee(ins,to,vec![fee1]).await;
             match  psbt {
                 Ok(psbt) => {
                     println!("psbt:{}",psbt.0);  
