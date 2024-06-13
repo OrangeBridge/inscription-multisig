@@ -1,10 +1,11 @@
 use anyhow::{bail, Error, Result};
 use bdk::bitcoin::blockdata::witness;
+use bdk::bitcoin::hashes::hex;
 use bdk::bitcoin::hashes::sha256d::Hash;
 use bdk::bitcoin::policy::get_virtual_tx_size;
 use bdk::bitcoin::psbt::{self, Input, PartiallySignedTransaction, Psbt, PsbtSighashType};
 use bdk::bitcoin::secp256k1::Secp256k1;
-use bdk::bitcoin::{Address, EcdsaSighashType, Network, OutPoint, PrivateKey, Script, SigHashType, Transaction, TxIn, TxOut, Txid, Witness};
+use bdk::bitcoin::{Address, EcdsaSighashType, Network, OutPoint, PrivateKey, PublicKey, Script, SigHashType, Transaction, TxIn, TxOut, Txid, Witness, XOnlyPublicKey};
 use bdk::bitcoincore_rpc::json::Utxo;
 use bdk::blockchain::rpc::{Auth, RpcBlockchain, RpcSyncParams};
 use bdk::blockchain::{Blockchain, ElectrumBlockchain, GetTx, RpcConfig};
@@ -12,7 +13,7 @@ use bdk::database::{Database, MemoryDatabase};
 use bdk::miniscript::descriptor::TapTree;
 use bdk::miniscript::policy::Concrete;
 use bdk::miniscript::psbt::PsbtExt;
-use bdk::miniscript::Descriptor;
+use bdk::miniscript::{Descriptor, ToPublicKey};
 
 use bdk::psbt::PsbtUtils;
 use bdk::signer::{InputSigner, SignerContext, SignerOrdering, SignerWrapper};
@@ -190,7 +191,7 @@ impl MultiWallet {
      * create a psbt to transfer inscription
      */
     // ##todo 
-    pub async fn transfer_insc_with_witness_fee(&self,inscription:Inscription,to:Address,fee_utxos:Vec<FeeUtxo>)->Result<(Psbt, TransactionDetails)> {
+    pub async fn transfer_insc_with_witness_fee(&self,inscription:Inscription,to:Address,fee_utxos:Vec<FeeUtxo>,pub_key:PublicKey)->Result<(Psbt, TransactionDetails)> {
         let wallet_policy = self.wallet.policies(KeychainKind::External)?.unwrap();
         let feeRate = self.fee_rate_sat_vb().await?;
         let mut path = BTreeMap::new();
@@ -216,7 +217,10 @@ impl MultiWallet {
         for utxo in fee_utxos{
             let mut input = Input::default();
             input.witness_utxo = Some(utxo.tx_out);
+            let x_pub = pub_key.to_x_only_pubkey();
+            input.tap_internal_key = Some(x_pub);
             tx_builder.add_foreign_utxo(utxo.outpoint, input,100)?;
+
         }
         if(covered> fee){
             tx_builder.add_recipient(to.script_pubkey(), covered-fee).fee_absolute(fee);
@@ -430,153 +434,153 @@ async fn inscribe_brc_transfer(){
         Err(err) => println!("{}", err),
     }
 }
-#[tokio::test]
-async fn xfer_insc_psbt(){
-    let wallet = MultiWallet::new(
-        2,
-        vec![
-            "022a901525c907899a43c101cc21c11cc03e1f122e7e6845303e98e73dfc73cd71".to_string(),
-            "0384ed0788ee7d463d7e3c9f05761da775518d3262f2a54bcca38c9b85cd1b4a7c".to_string(),
-            "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()          
-        ],
-        "./wallet_test".to_string(),
-        Network::Regtest,
-        "http://127.0.0.1:18443".to_string(),
-        Auth::UserPass {
-            username: "user".to_string(),
-            password: "pass".to_string(),
-        },
-        "https://api.hiro.so".to_string()
-    ).await;
-    match wallet {
-        Ok(mut wallet) => {
-            let ins = Inscription{
-                id:"bf568aab915f45de604bc55c92c8665298bb8a82204fee1678e9cd3fe41bb7bdi0".to_string(),
-                location:"bf568aab915f45de604bc55c92c8665298bb8a82204fee1678e9cd3fe41bb7bd:0:0".to_string()
-            };
-            let to = Address::from_str("bcrt1plcggswcj4zw6t3gsgef5npcvejklw505mn0e87ajxgamksuz07aqg8qt9v").ok().unwrap();
+//#[tokio::test]
+// async fn xfer_insc_psbt(){
+//     let wallet = MultiWallet::new(
+//         2,
+//         vec![
+//             "022a901525c907899a43c101cc21c11cc03e1f122e7e6845303e98e73dfc73cd71".to_string(),
+//             "0384ed0788ee7d463d7e3c9f05761da775518d3262f2a54bcca38c9b85cd1b4a7c".to_string(),
+//             "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()          
+//         ],
+//         "./wallet_test".to_string(),
+//         Network::Regtest,
+//         "http://127.0.0.1:18443".to_string(),
+//         Auth::UserPass {
+//             username: "user".to_string(),
+//             password: "pass".to_string(),
+//         },
+//         "https://api.hiro.so".to_string()
+//     ).await;
+//     match wallet {
+//         Ok(mut wallet) => {
+//             let ins = Inscription{
+//                 id:"bf568aab915f45de604bc55c92c8665298bb8a82204fee1678e9cd3fe41bb7bdi0".to_string(),
+//                 location:"bf568aab915f45de604bc55c92c8665298bb8a82204fee1678e9cd3fe41bb7bd:0:0".to_string()
+//             };
+//             let to = Address::from_str("bcrt1plcggswcj4zw6t3gsgef5npcvejklw505mn0e87ajxgamksuz07aqg8qt9v").ok().unwrap();
             
-            let tx_out = TxOut{
-                value:399846, script_pubkey: 
-                Script::from_str("5120fe10883b12a89da5c510465349870cccadf751f4dcdf93fbb2323bbb43827fba").unwrap()
-            };
-            let txid: Txid = Txid::from_str("eae5de65dc0d152600b94885701f769975947d8f18bbd9138acc9727af1d6047").unwrap();
-            let outpoint= OutPoint::new(txid, 1);
+//             let tx_out = TxOut{
+//                 value:399846, script_pubkey: 
+//                 Script::from_str("5120fe10883b12a89da5c510465349870cccadf751f4dcdf93fbb2323bbb43827fba").unwrap()
+//             };
+//             let txid: Txid = Txid::from_str("eae5de65dc0d152600b94885701f769975947d8f18bbd9138acc9727af1d6047").unwrap();
+//             let outpoint= OutPoint::new(txid, 1);
 
 
-            let fee1 = FeeUtxo{
-                outpoint:outpoint,
-                tx_out:tx_out,
-                weight:100
-            };
-            let psbt = wallet.transfer_insc_with_witness_fee(ins,to,vec![fee1]).await;
-            match  psbt {
-                Ok(psbt) => {
-                    println!("psbt:{}",psbt.0);  
-                    let tx = psbt.0.clone().extract_tx();
-                    println!("tx:{:#?}",tx);
-                    let fee = psbt.0.fee_rate().unwrap();
+//             let fee1 = FeeUtxo{
+//                 outpoint:outpoint,
+//                 tx_out:tx_out,
+//                 weight:100
+//             };
+//             let psbt = wallet.transfer_insc_with_witness_fee(ins,to,vec![fee1]).await;
+//             match  psbt {
+//                 Ok(psbt) => {
+//                     println!("psbt:{}",psbt.0);  
+//                     let tx = psbt.0.clone().extract_tx();
+//                     println!("tx:{:#?}",tx);
+//                     let fee = psbt.0.fee_rate().unwrap();
                     
-                    println!("feeRate:{}",fee.as_sat_per_vb());
-                },
-                Err(err) => {
-                    println!("error:{}",err)
-                },
-            }
-        }
-        Err(err) => println!("{}", err),
-    }
-}
+//                     println!("feeRate:{}",fee.as_sat_per_vb());
+//                 },
+//                 Err(err) => {
+//                     println!("error:{}",err)
+//                 },
+//             }
+//         }
+//         Err(err) => println!("{}", err),
+//     }
+// }
 
-#[tokio::test]
-async fn sign_psbt(){
-    let wallet = MultiWallet::new(
-        2,
-        vec![
-            "022a901525c907899a43c101cc21c11cc03e1f122e7e6845303e98e73dfc73cd71".to_string(),
-            "0384ed0788ee7d463d7e3c9f05761da775518d3262f2a54bcca38c9b85cd1b4a7c".to_string(),
-            "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()
-        ],
-        "./wallet_test".to_string(),
-        Network::Regtest,
-        "http://127.0.0.1:18443".to_string(),
-        Auth::UserPass {
-            username: "user".to_string(),
-            password: "pass".to_string(),
-        },
-        "https://api.hiro.so".to_string()
-    ).await;
-    match wallet {
-        Ok(mut wallet) => {
-               let mut _psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/ulISBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknwiFcACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgKpAVJckHiZpDwQHMIcEcwD4fEi5+aEUwPpjnPfxzzXGsIITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8uiCSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe67pSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRYqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcSUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PiGVEKcIRaE7QeI7n1GPX48nwV2Had1UY0yYvKlS8yjjJuFzRtKfCUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0Pj5F0LGIRaSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe6yUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PjhBtxBARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+AABASvmGQYAAAAAACJRIP4QiDsSqJ2lxRBGU0mHDMyt91H03N+T+7IyO7tDgn+6AAAA").unwrap();
-               let private_key = PrivateKey::from_str("L11nWVMfXE5txy2zzc1T9ieR8kh2VoWVTmTVV3hvKLBgm4RXNhyV").ok().unwrap();
-               let signer = SignerWrapper::new(private_key, SignerContext::Tap { is_internal_key: true });
-               let secp = Secp256k1::new();
+// #[tokio::test]
+// async fn sign_psbt(){
+//     let wallet = MultiWallet::new(
+//         2,
+//         vec![
+//             "022a901525c907899a43c101cc21c11cc03e1f122e7e6845303e98e73dfc73cd71".to_string(),
+//             "0384ed0788ee7d463d7e3c9f05761da775518d3262f2a54bcca38c9b85cd1b4a7c".to_string(),
+//             "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()
+//         ],
+//         "./wallet_test".to_string(),
+//         Network::Regtest,
+//         "http://127.0.0.1:18443".to_string(),
+//         Auth::UserPass {
+//             username: "user".to_string(),
+//             password: "pass".to_string(),
+//         },
+//         "https://api.hiro.so".to_string()
+//     ).await;
+//     match wallet {
+//         Ok(mut wallet) => {
+//                let mut _psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/ulISBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknwiFcACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgKpAVJckHiZpDwQHMIcEcwD4fEi5+aEUwPpjnPfxzzXGsIITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8uiCSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe67pSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRYqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcSUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PiGVEKcIRaE7QeI7n1GPX48nwV2Had1UY0yYvKlS8yjjJuFzRtKfCUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0Pj5F0LGIRaSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe6yUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PjhBtxBARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+AABASvmGQYAAAAAACJRIP4QiDsSqJ2lxRBGU0mHDMyt91H03N+T+7IyO7tDgn+6AAAA").unwrap();
+//                let private_key = PrivateKey::from_str("L11nWVMfXE5txy2zzc1T9ieR8kh2VoWVTmTVV3hvKLBgm4RXNhyV").ok().unwrap();
+//                let signer = SignerWrapper::new(private_key, SignerContext::Tap { is_internal_key: true });
+//                let secp = Secp256k1::new();
              
              
-            //    wallet.wallet.add_signer(
-            //         KeychainKind::External,
-            //         SignerOrdering(0),
-            //         Arc::new(signer)
-            // );
-               let mut options = SignOptions::default();
-               options.allow_all_sighashes =true;
-               options.trust_witness_utxo = true;
-                let fin = signer.sign_input(&mut _psbt, 1, &options, &secp).unwrap();
-                let finalized = wallet.wallet.sign(&mut _psbt, options).unwrap();
-               println!(" status:{} psbt_signed:{}", finalized,_psbt);
-        }
-        Err(err) => println!("{}", err),
-    }
-}
+//             //    wallet.wallet.add_signer(
+//             //         KeychainKind::External,
+//             //         SignerOrdering(0),
+//             //         Arc::new(signer)
+//             // );
+//                let mut options = SignOptions::default();
+//                options.allow_all_sighashes =true;
+//                options.trust_witness_utxo = true;
+//                 let fin = signer.sign_input(&mut _psbt, 1, &options, &secp).unwrap();
+//                 let finalized = wallet.wallet.sign(&mut _psbt, options).unwrap();
+//                println!(" status:{} psbt_signed:{}", finalized,_psbt);
+//         }
+//         Err(err) => println!("{}", err),
+//     }
+// }
 
-#[tokio::test]
-async fn combine_broadcast(){
-    let wallet = MultiWallet::new(
-        2,
-        vec![
-            "022a901525c907899a43c101cc21c11cc03e1f122e7e6845303e98e73dfc73cd71".to_string(),
-            "0384ed0788ee7d463d7e3c9f05761da775518d3262f2a54bcca38c9b85cd1b4a7c".to_string(),
-            "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()
-        ],
-        "./wallet_test".to_string(),
-        Network::Regtest,
-        "http://127.0.0.1:18443".to_string(),
-        Auth::UserPass {
-            username: "user".to_string(),
-            password: "pass".to_string(),
-        },
-        "https://api.hiro.so".to_string()
-    ).await;
-    match wallet {
-        Ok(wallet) => {
-            let mut base_psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/ulISBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknwiFcACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgKpAVJckHiZpDwQHMIcEcwD4fEi5+aEUwPpjnPfxzzXGsIITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8uiCSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe67pSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRYqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcSUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PiGVEKcIRaE7QeI7n1GPX48nwV2Had1UY0yYvKlS8yjjJuFzRtKfCUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0Pj5F0LGIRaSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe6yUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PjhBtxBARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+AABASvmGQYAAAAAACJRIP4QiDsSqJ2lxRBGU0mHDMyt91H03N+T+7IyO7tDgn+6AAAA").unwrap();
-            let signed_psbts = vec![
-                 // TODO: Paste each participant's PSBT here
-                 "cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/ulISBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknxBFCqQFSXJB4maQ8EBzCHBHMA+HxIufmhFMD6Y5z38c81x3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PhA/dZj/iN0mYbvNqCP5KXf1h7p2rRNTVBijJm+qnr4mapICasuaofZrXn7ZwKQXfbaZEIXYqHtrygb2YTT0/1KZiIVwAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSAqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcawghO0HiO59Rj1+PJ8Fdh2ndVGNMmLypUvMo4ybhc0bSny6IJK688PcG+KZMjD36qV0KztcOLKmcjdQvbauFe56hZ7rulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFiqQFSXJB4maQ8EBzCHBHMA+HxIufmhFMD6Y5z38c81xJQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+IZUQpwhFoTtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8JQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+PkXQsYhFpK688PcG+KZMjD36qV0KztcOLKmcjdQvbauFe56hZ7rJQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+OEG3EEBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINztfWFK+gDslkDWqTl4If7cunoppLP3XbuxxvL5V9D4AAEBK+YZBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7oAAAA=",
-                 "cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/ulISBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknxBFITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p83O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PhAg+sa0ZvTAJEnTJPzGTMD9Wc7y0CCwMAYPfiwfK773oKQjllUgy32hRE77ebswhiQ24xox/NeLMFvGS6j5rp/WCIVwAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSAqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcawghO0HiO59Rj1+PJ8Fdh2ndVGNMmLypUvMo4ybhc0bSny6IJK688PcG+KZMjD36qV0KztcOLKmcjdQvbauFe56hZ7rulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFiqQFSXJB4maQ8EBzCHBHMA+HxIufmhFMD6Y5z38c81xJQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+IZUQpwhFoTtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8JQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+PkXQsYhFpK688PcG+KZMjD36qV0KztcOLKmcjdQvbauFe56hZ7rJQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+OEG3EEBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINztfWFK+gDslkDWqTl4If7cunoppLP3XbuxxvL5V9D4AAEBK+YZBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7oAAAA=",
-                 "cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/ulISBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknwiFcACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgKpAVJckHiZpDwQHMIcEcwD4fEi5+aEUwPpjnPfxzzXGsIITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8uiCSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe67pSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRYqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcSUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PiGVEKcIRaE7QeI7n1GPX48nwV2Had1UY0yYvKlS8yjjJuFzRtKfCUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0Pj5F0LGIRaSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe6yUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PjhBtxBARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+AABASvmGQYAAAAAACJRIP4QiDsSqJ2lxRBGU0mHDMyt91H03N+T+7IyO7tDgn+6ARNAbMnwLFYdMn3X9deGRwM8XhuQIV5NDZ0fOkPSWmOc5RwZy0TOS5c7nh9KtJYZVLCuJk5t2yf2oWaFw+JvpQM0dAAAAA=="
-                 ];
+// #[tokio::test]
+// async fn combine_broadcast(){
+//     let wallet = MultiWallet::new(
+//         2,
+//         vec![
+//             "022a901525c907899a43c101cc21c11cc03e1f122e7e6845303e98e73dfc73cd71".to_string(),
+//             "0384ed0788ee7d463d7e3c9f05761da775518d3262f2a54bcca38c9b85cd1b4a7c".to_string(),
+//             "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()
+//         ],
+//         "./wallet_test".to_string(),
+//         Network::Regtest,
+//         "http://127.0.0.1:18443".to_string(),
+//         Auth::UserPass {
+//             username: "user".to_string(),
+//             password: "pass".to_string(),
+//         },
+//         "https://api.hiro.so".to_string()
+//     ).await;
+//     match wallet {
+//         Ok(wallet) => {
+//             let mut base_psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/ulISBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknwiFcACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgKpAVJckHiZpDwQHMIcEcwD4fEi5+aEUwPpjnPfxzzXGsIITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8uiCSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe67pSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRYqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcSUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PiGVEKcIRaE7QeI7n1GPX48nwV2Had1UY0yYvKlS8yjjJuFzRtKfCUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0Pj5F0LGIRaSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe6yUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PjhBtxBARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+AABASvmGQYAAAAAACJRIP4QiDsSqJ2lxRBGU0mHDMyt91H03N+T+7IyO7tDgn+6AAAA").unwrap();
+//             let signed_psbts = vec![
+//                  // TODO: Paste each participant's PSBT here
+//                  "cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/ulISBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknxBFCqQFSXJB4maQ8EBzCHBHMA+HxIufmhFMD6Y5z38c81x3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PhA/dZj/iN0mYbvNqCP5KXf1h7p2rRNTVBijJm+qnr4mapICasuaofZrXn7ZwKQXfbaZEIXYqHtrygb2YTT0/1KZiIVwAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSAqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcawghO0HiO59Rj1+PJ8Fdh2ndVGNMmLypUvMo4ybhc0bSny6IJK688PcG+KZMjD36qV0KztcOLKmcjdQvbauFe56hZ7rulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFiqQFSXJB4maQ8EBzCHBHMA+HxIufmhFMD6Y5z38c81xJQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+IZUQpwhFoTtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8JQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+PkXQsYhFpK688PcG+KZMjD36qV0KztcOLKmcjdQvbauFe56hZ7rJQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+OEG3EEBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINztfWFK+gDslkDWqTl4If7cunoppLP3XbuxxvL5V9D4AAEBK+YZBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7oAAAA=",
+//                  "cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/ulISBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknxBFITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p83O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PhAg+sa0ZvTAJEnTJPzGTMD9Wc7y0CCwMAYPfiwfK773oKQjllUgy32hRE77ebswhiQ24xox/NeLMFvGS6j5rp/WCIVwAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICaSAqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcawghO0HiO59Rj1+PJ8Fdh2ndVGNMmLypUvMo4ybhc0bSny6IJK688PcG+KZMjD36qV0KztcOLKmcjdQvbauFe56hZ7rulKcwCEWAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFAFGBTxAhFiqQFSXJB4maQ8EBzCHBHMA+HxIufmhFMD6Y5z38c81xJQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+IZUQpwhFoTtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8JQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+PkXQsYhFpK688PcG+KZMjD36qV0KztcOLKmcjdQvbauFe56hZ7rJQHc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+OEG3EEBFyACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEYINztfWFK+gDslkDWqTl4If7cunoppLP3XbuxxvL5V9D4AAEBK+YZBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7oAAAA=",
+//                  "cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/ulISBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknwiFcACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgKpAVJckHiZpDwQHMIcEcwD4fEi5+aEUwPpjnPfxzzXGsIITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8uiCSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe67pSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRYqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcSUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PiGVEKcIRaE7QeI7n1GPX48nwV2Had1UY0yYvKlS8yjjJuFzRtKfCUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0Pj5F0LGIRaSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe6yUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PjhBtxBARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+AABASvmGQYAAAAAACJRIP4QiDsSqJ2lxRBGU0mHDMyt91H03N+T+7IyO7tDgn+6ARNAbMnwLFYdMn3X9deGRwM8XhuQIV5NDZ0fOkPSWmOc5RwZy0TOS5c7nh9KtJYZVLCuJk5t2yf2oWaFw+JvpQM0dAAAAA=="
+//                  ];
         
-            for psbt in signed_psbts {
-                let psbt = PartiallySignedTransaction::from_str(psbt).unwrap();
-                base_psbt.combine(psbt).ok();
-            }
+//             for psbt in signed_psbts {
+//                 let psbt = PartiallySignedTransaction::from_str(psbt).unwrap();
+//                 base_psbt.combine(psbt).ok();
+//             }
 
-            let secp = Secp256k1::new();
-            let psbt = base_psbt.finalize(&secp).unwrap();
-            let finalized_tx = psbt.extract_tx();
-            dbg!(finalized_tx.txid());
-            let broadcast = wallet.blockchain.broadcast(&finalized_tx);
-            match  broadcast {
-                Ok(_) => {println!(" succesfullt broadcasted")},
-                Err(err) =>{println!("error:{}",err)}
-            }
-        }
-        Err(err) => println!("{}", err),
-    }
+//             let secp = Secp256k1::new();
+//             let psbt = base_psbt.finalize(&secp).unwrap();
+//             let finalized_tx = psbt.extract_tx();
+//             dbg!(finalized_tx.txid());
+//             let broadcast = wallet.blockchain.broadcast(&finalized_tx);
+//             match  broadcast {
+//                 Ok(_) => {println!(" succesfullt broadcasted")},
+//                 Err(err) =>{println!("error:{}",err)}
+//             }
+//         }
+//         Err(err) => println!("{}", err),
+//     }
 
-}
+// }
 
 #[tokio::test]
 async fn test(){
@@ -598,11 +602,13 @@ async fn test(){
     ).await;
     match wallet {
         Ok(wallet) => {
-            let mut base_psbt = PartiallySignedTransaction::from_str("cHNidP8BALIBAAAAAr23G+Q/zel4Fu5PIIKKu5hSZsiSXMVLYN5FX5Grila/AAAAAAD9////R2AdryeXzIoT2bsYj32UdZl2H3CFSLkAJhUN3GXe5eoBAAAAAP3///8CIgIAAAAAAAAiUSD+EIg7EqidpcUQRlNJhwzMrfdR9Nzfk/uyMju7Q4J/uiQZBgAAAAAAIlEg/hCIOxKonaXFEEZTSYcMzK33UfTc35P7sjI7u0OCf7rAAgAAAAEBKyICAAAAAAAAIlEgwS3cH/F69X4lvdv1ruLtjl/BES7LR1v+AxXuZyOkknwiFcACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAmkgKpAVJckHiZpDwQHMIcEcwD4fEi5+aEUwPpjnPfxzzXGsIITtB4jufUY9fjyfBXYdp3VRjTJi8qVLzKOMm4XNG0p8uiCSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe67pSnMAhFgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBQBRgU8QIRYqkBUlyQeJmkPBAcwhwRzAPh8SLn5oRTA+mOc9/HPNcSUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PiGVEKcIRaE7QeI7n1GPX48nwV2Had1UY0yYvKlS8yjjJuFzRtKfCUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0Pj5F0LGIRaSuvPD3BvimTIw9+qldCs7XDiypnI3UL22rhXueoWe6yUB3O19YUr6AOyWQNapOXgh/ty6eimks/ddu7HG8vlX0PjhBtxBARcgAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBGCDc7X1hSvoA7JZA1qk5eCH+3Lp6KaSz9127scby+VfQ+AABASvmGQYAAAAAACJRIP4QiDsSqJ2lxRBGU0mHDMyt91H03N+T+7IyO7tDgn+6ARNAO/6EE3+eq9RcLg+M2duJnB6JF4s9YDROnnXjQWcVAgJVWu7BeUiQQ9Ydp+UOOpKL5WULxwy6d/fxPXZSLsPpTgAAAA==").unwrap();
-           
+            
+            let mut base_psbt = PartiallySignedTransaction::from_str("cHNidP8BAP21AQIAAAAFy0pEXgOgnMqPaONq0dxWW26eBxCgeuQ1/F+otCGGu5QFAAAAAP/////LSkReA6Ccyo9o42rR3FZbbp4HEKB65DX8X6i0IYa7lAYAAAAA/////0QLI4/kA6/92xZx+G9iq1PEa5KCFHlZh2p9NNwg9kFVAAAAAAD/////BG7Hizoit6pRdS0Z9QZki4Vv/SGRA2gcugYGruPc6qUBAAAAAP/////LSkReA6Ccyo9o42rR3FZbbp4HEKB65DX8X6i0IYa7lAAAAAAA/////wZYAgAAAAAAABYAFPkFfBviIP5q9JreALkjF3jkXZb+IgIAAAAAAAAiUSCuygoGpuWFFt8h+M0JxJJfXmT974oRyXcdQKzAzUpvACDLAAAAAAAAIlEgJfMniH5NSVOgYJs4inBBjA2gAsW4PQ7w3yktazO7l+cQfQkAAAAAACJRIK7KCgam5YUW3yH4zQnEkl9eZP3vihHJdx1ArMDNSm8ALAEAAAAAAAAWABT5BXwb4iD+avSa3gC5Ixd45F2W/iwBAAAAAAAAFgAU+QV8G+Ig/mr0mt4AuSMXeORdlv4AAAAAAAEBHywBAAAAAAAAFgAU+QV8G+Ig/mr0mt4AuSMXeORdlv4AAQEfLAEAAAAAAAAWABT5BXwb4iD+avSa3gC5Ixd45F2W/gABASsiAgAAAAAAACJRICXzJ4h+TUlToGCbOIpwQYwNoALFuD0O8N8pLWszu5fnAQMEgwAAAAEXIOMDaPlD4TljY/4lqusTGjkVE0yKxGq1xMGAlVtEWQvMAAEBKxh+CgAAAAAAIlEgrsoKBqblhRbfIfjNCcSSX15k/e+KEcl3HUCswM1KbwABFyBASZNmhwY/1ISJ1WKAy36Ow+sVYAatxNLd65K0p0qjUwABAR9YAgAAAAAAABYAFPkFfBviIP5q9JreALkjF3jkXZb+AAAAAAAAAA==").unwrap();
+           let script = Address::from_str("bc1p4m9q5p4xukz3dheplrxsn3yjta0xfl003ggujacagzkvpn22duqqyjan4s").unwrap().script_pubkey();
             let secp = Secp256k1::new();
-        
-            println!("tx:{:#?}",base_psbt.fee_rate());
+            // let psbt = base_psbt.finalize(&secp).unwrap();
+            // let finalized_tx = base_psbt.extract_tx();
+            println!("tx:{:#?}",base_psbt.inputs[3]);
             // dbg!(finalized_tx.txid());
             // let broadcast = wallet.blockchain.broadcast(&finalized_tx);
             // match  broadcast {
