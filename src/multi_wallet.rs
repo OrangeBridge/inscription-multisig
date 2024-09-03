@@ -62,8 +62,7 @@ impl MultiWallet {
         network: bdk::bitcoin::Network,
         rpc_url: String,
         auth: Auth,
-        ordinals_api_url:String,
-        electrum_rpc:String
+        ordinals_api_url:String
     ) -> Result<MultiWallet> {
 
         let n = pub_keys.len();
@@ -379,8 +378,7 @@ pub async fn test_getWallet() {
             username: "user".to_string(),
             password: "pass".to_string(),
         },
-        "https://api.hiro.so".to_string(),
-        "ssl://electrum.emzy.de:50002".to_string()
+        "https://api.hiro.so".to_string()
     ).await;
     match wallet {
         Ok(wallet) =>{
@@ -418,8 +416,7 @@ async fn inscribe_brc_transfer(){
             username: "user".to_string(),
             password: "pass".to_string(),
         },
-        "https://api.hiro.so".to_string(),
-        "ssl://electrum.emzy.de:50002".to_string()
+        "https://api.hiro.so".to_string()
     ).await;
     match wallet {
         Ok(wallet) => {
@@ -602,8 +599,7 @@ async fn test(){
             username: "user".to_string(),
             password: "pass".to_string(),
         },
-        "https://api.hiro.so".to_string(),
-        "ssl://electrum.emzy.de:50002".to_string()
+        "https://api.hiro.so".to_string()
     ).await;
     match wallet {
         Ok(wallet) => {
