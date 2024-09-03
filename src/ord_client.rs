@@ -268,7 +268,8 @@ async fn estimate_fee(){
             username: "user".to_string(),
             password: "pass".to_string(),
         },
-        "https://api.hiro.so".to_string()
+        "https://api.hiro.so".to_string(),
+        "ssl://electrum.blockstream.info:50002".to_string()
     ).await;
     match  wallet {
         Ok(wallet) => {
@@ -301,7 +302,8 @@ async fn inscribe_brc20_test(){
             username: "user".to_string(),
             password: "pass".to_string(),
         },
-        "https://api.hiro.so".to_string()
+        "https://api.hiro.so".to_string(),
+        "ssl://electrum.blockstream.info:50002".to_string()
     ).await;
     match  wallet {
         Ok(wallet) => {
@@ -349,7 +351,8 @@ pub async fn get_receive(){
             username: "user".to_string(),
             password: "pass".to_string(),
         },
-        "https://api.hiro.so".to_string()
+        "https://api.hiro.so".to_string(),
+        "ssl://electrum.blockstream.info:50002".to_string()
     ).await;
     match  wallet {
     Ok(wallet) => {
