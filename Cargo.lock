@@ -774,7 +774,7 @@ dependencies = [
 
 [[package]]
 name = "inscription-multisig"
-version = "0.1.13"
+version = "0.1.14"
 dependencies = [
  "anyhow",
  "bdk",

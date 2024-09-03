@@ -62,8 +62,7 @@ impl MultiWallet {
         network: bdk::bitcoin::Network,
         rpc_url: String,
         auth: Auth,
-        ordinals_api_url:String,
-        electrum_rpc:String
+        ordinals_api_url:String
     ) -> Result<MultiWallet> {
 
         let n = pub_keys.len();
@@ -108,9 +107,9 @@ impl MultiWallet {
 
         let blockchain = RpcBlockchain::from_config(&rpc_config).unwrap();
         if(network== Network::Bitcoin){
-            let client = electrum_client::Client::new(&electrum_rpc)?;
-            let blockchain_e = ElectrumBlockchain::from(client);
-            wallet.sync(&blockchain_e, bdk::SyncOptions { progress: None })?;
+            // let client = electrum_client::Client::new(&electrum_rpc)?;
+            // let blockchain_e = ElectrumBlockchain::from(client);
+            wallet.sync(&blockchain, bdk::SyncOptions { progress: None })?;
         }
         else{
             wallet.sync(&blockchain, bdk::SyncOptions { progress: None })?;
@@ -378,8 +377,7 @@ pub async fn test_getWallet() {
             username: "user".to_string(),
             password: "pass".to_string(),
         },
-        "https://api.hiro.so".to_string(),
-        "ssl://electrum.blockstream.info:50002".to_string()
+        "https://api.hiro.so".to_string()
     ).await;
     match wallet {
         Ok(wallet) =>{
@@ -417,8 +415,7 @@ async fn inscribe_brc_transfer(){
             username: "user".to_string(),
             password: "pass".to_string(),
         },
-        "https://api.hiro.so".to_string(),
-        "ssl://electrum.blockstream.info:50002".to_string()
+        "https://api.hiro.so".to_string()
     ).await;
     match wallet {
         Ok(wallet) => {
@@ -601,8 +598,7 @@ async fn test(){
             username: "user".to_string(),
             password: "pass".to_string(),
         },
-        "https://api.hiro.so".to_string(),
-        "ssl://electrum.blockstream.info:50002".to_string()
+        "https://api.hiro.so".to_string()
     ).await;
     match wallet {
         Ok(wallet) => {
