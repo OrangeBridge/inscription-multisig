@@ -106,15 +106,15 @@ impl MultiWallet {
         };
 
         let blockchain = RpcBlockchain::from_config(&rpc_config).unwrap();
-        if(network== Network::Bitcoin){
-            // let client = electrum_client::Client::new(&electrum_rpc)?;
-            // let blockchain_e = ElectrumBlockchain::from(client);
-            wallet.sync(&blockchain, bdk::SyncOptions ::default())?;
-        }
-        else{
-            wallet.sync(&blockchain, bdk::SyncOptions {
-                 progress: None })?;
-        }
+        // if(network== Network::Bitcoin){
+        //     // let client = electrum_client::Client::new(&electrum_rpc)?;
+        //     // let blockchain_e = ElectrumBlockchain::from(client);
+        //     wallet.sync(&blockchain, bdk::SyncOptions ::default())?;
+        // }
+        // else{
+        //     wallet.sync(&blockchain, bdk::SyncOptions {
+        //          progress: None })?;
+        // }
         let _ord = OrdClient::new(auth, network).await?;
 
         let db_tree = database.open_tree(format!("{}_unspendable",wallet_name)).unwrap();
