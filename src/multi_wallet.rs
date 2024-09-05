@@ -179,15 +179,20 @@ impl MultiWallet {
         .policy_path(path, KeychainKind::External)
         .add_utxo(utxo.outpoint)?
         .unspendable(self.unspendable.clone())
-        .add_recipient(to.script_pubkey(), utxo.txout.value)
-       
+        .add_recipient(to.script_pubkey(), utxo.txout.value)     
         .fee_rate(FeeRate::from_sat_per_vb(feerate))
         .enable_rbf();
         
         let (mut psbt, _details) = tx_builder.finish()?;
 
+        
+        let _ = psbt.clone().extract_tx().input.iter()
+        .map(|input| {
+            let out = input.previous_output;
+            let _ = self.update_unspendable(out);
+        });
 
-  
+
 
         // get location of utxo should and what location is in psbt
 
