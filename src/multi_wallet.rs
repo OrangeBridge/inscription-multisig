@@ -166,7 +166,7 @@ impl MultiWallet {
     /**
      * create a psbt to transfer inscription
      */
-    pub async fn transfer_insc_zero_fee(&self,inscription:Inscription,to:Address)->Result<(Psbt, TransactionDetails)> {
+    pub async fn transfer_insc_zero_fee(&mut self,inscription:Inscription,to:Address)->Result<(Psbt, TransactionDetails)> {
         let wallet_policy = self.wallet.policies(KeychainKind::External)?.unwrap();
         let mut path = BTreeMap::new();
         path.insert(wallet_policy.id, vec![1]);
@@ -178,11 +178,11 @@ impl MultiWallet {
         .ordering(TxOrdering::Untouched)
         .policy_path(path, KeychainKind::External)
         .add_utxo(utxo.outpoint)?
-        .unspendable(self.unspendeble.clone())
+        .unspendable(self.unspendable.clone())
         .add_recipient(to.script_pubkey(), utxo.txout.value)     
         .fee_rate(FeeRate::from_sat_per_vb(feerate))
         .enable_rbf();
-        
+        println!("unspendable:{:?}",self.unspendable.clone());
         let (mut psbt, _details) = tx_builder.finish()?;
 
         
@@ -311,7 +311,7 @@ impl MultiWallet {
     pub fn update_unspendable(&mut self,outpoint:OutPoint)->Result<()>{
         let db_tree = self.db.open_tree(format!("{}_unspendable",self.wallet_name)).unwrap();
         let mut unspendable:Vec<OutPoint> = vec![];
-        self.unspendable.push(outpoint)
+        self.unspendable.push(outpoint);
         if let Some(utxo_vec) = db_tree.get("unspendable")? {
             unspendable= bincode::deserialize(&utxo_vec)?;
             unspendable.push(outpoint);
