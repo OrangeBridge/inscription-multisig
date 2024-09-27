@@ -166,7 +166,7 @@ impl MultiWallet {
     /**
      * create a psbt to transfer inscription
      */
-    pub async fn transfer_insc_zero_fee(&self,inscription:Inscription,to:Address)->Result<(Psbt, TransactionDetails)> {
+    pub async fn transfer_insc_zero_fee(&mut self,inscription:Inscription,to:Address)->Result<(Psbt, TransactionDetails)> {
         let wallet_policy = self.wallet.policies(KeychainKind::External)?.unwrap();
         let mut path = BTreeMap::new();
         path.insert(wallet_policy.id, vec![1]);
@@ -192,6 +192,7 @@ impl MultiWallet {
         .map(|input| {
             let out = input.previous_output;
             let _ = self.update_unspendable(out);
+            println!("add unspendable:{:?}",out);
         });
 
 
@@ -310,9 +311,10 @@ impl MultiWallet {
             bail!("could not estimat gas fee")
         }
     }
-    pub fn update_unspendable(&self,outpoint:OutPoint)->Result<()>{
+    pub fn update_unspendable(&mut self,outpoint:OutPoint)->Result<()>{
         let db_tree = self.db.open_tree(format!("{}_unspendable",self.wallet_name)).unwrap();
         let mut unspendable:Vec<OutPoint> = vec![];
+        self.unspendable.push(outpoint);
         if let Some(utxo_vec) = db_tree.get("unspendable")? {
             unspendable= bincode::deserialize(&utxo_vec)?;
             unspendable.push(outpoint);
