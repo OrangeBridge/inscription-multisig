@@ -173,14 +173,14 @@ impl MultiWallet {
         let mut tx_builder = self.wallet.build_tx().coin_selection(LargestFirstCoinSelection);
         let _ = self.sync();
         let utxo: LocalUtxo = self.get_utxo(inscription.location)?;
-        let unspendeble = self.get_unspendable()?;
+
         let feerate = self.fee_rate_sat_vb().await?;
-        println!("unspendable:{:?}",unspendeble.clone());
+        println!("unspendable:{:?}",self.unspendable.clone());
         tx_builder
         .ordering(TxOrdering::Untouched)
         .policy_path(path, KeychainKind::External)
         .add_utxo(utxo.outpoint)?
-        .unspendable(unspendeble)
+        .unspendable(self.unspendable.clone())
         .add_recipient(to.script_pubkey(), utxo.txout.value)     
         .fee_rate(FeeRate::from_sat_per_vb(feerate))
         .enable_rbf();
