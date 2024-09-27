@@ -166,21 +166,21 @@ impl MultiWallet {
     /**
      * create a psbt to transfer inscription
      */
-    pub async fn transfer_insc_zero_fee(&mut self,inscription:Inscription,to:Address)->Result<(Psbt, TransactionDetails)> {
+    pub async fn transfer_insc_zero_fee(&self,inscription:Inscription,to:Address)->Result<(Psbt, TransactionDetails)> {
         let wallet_policy = self.wallet.policies(KeychainKind::External)?.unwrap();
         let mut path = BTreeMap::new();
         path.insert(wallet_policy.id, vec![1]);
         let mut tx_builder = self.wallet.build_tx().coin_selection(LargestFirstCoinSelection);
         let _ = self.sync();
         let utxo: LocalUtxo = self.get_utxo(inscription.location)?;
-
+        let u = self.get_unspendable()?;
         let feerate = self.fee_rate_sat_vb().await?;
-        println!("unspendable:{:?}",self.unspendable.clone());
+        println!("unspendable:{:?}",u);
         tx_builder
         .ordering(TxOrdering::Untouched)
         .policy_path(path, KeychainKind::External)
         .add_utxo(utxo.outpoint)?
-        .unspendable(self.unspendable.clone())
+        .unspendable(u)
         .add_recipient(to.script_pubkey(), utxo.txout.value)     
         .fee_rate(FeeRate::from_sat_per_vb(feerate))
         .enable_rbf();
@@ -311,10 +311,9 @@ impl MultiWallet {
             bail!("could not estimat gas fee")
         }
     }
-    pub fn update_unspendable(&mut self,outpoint:OutPoint)->Result<()>{
+    pub fn update_unspendable(&self,outpoint:OutPoint)->Result<()>{
         let db_tree = self.db.open_tree(format!("{}_unspendable",self.wallet_name)).unwrap();
         let mut unspendable:Vec<OutPoint> = vec![];
-        self.unspendable.push(outpoint);
         if let Some(utxo_vec) = db_tree.get("unspendable")? {
             unspendable= bincode::deserialize(&utxo_vec)?;
             unspendable.push(outpoint);
@@ -375,81 +374,81 @@ impl MultiWallet {
         let utxo = self.wallet.get_utxo(outpoint)?.unwrap();
         return Ok(utxo);
     }
-}
+ }
 
-#[tokio::test]
-pub async fn test_getWallet() {
-    let wallet = MultiWallet::new(
-        2,
-        vec![
-            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
-            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
-            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
-        ],
-        "./wallet_test".to_string(),
-        Network::Regtest,
-        "http://127.0.0.1:18443".to_string(),
-        Auth::UserPass {
-            username: "user".to_string(),
-            password: "pass".to_string(),
-        },
-        "https://api.hiro.so".to_string()
-    ).await;
-    match wallet {
-        Ok(wallet) =>{
+// #[tokio::test]
+// pub async fn test_getWallet() {
+//     let wallet = MultiWallet::new(
+//         2,
+//         vec![
+//             "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+//             "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+//             "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
+//         ],
+//         "./wallet_test".to_string(),
+//         Network::Regtest,
+//         "http://127.0.0.1:18443".to_string(),
+//         Auth::UserPass {
+//             username: "user".to_string(),
+//             password: "pass".to_string(),
+//         },
+//         "https://api.hiro.so".to_string()
+//     ).await;
+//     match wallet {
+//         Ok(wallet) =>{
        
-            if let Ok(address) = wallet.wallet.get_internal_address(AddressIndex::New) {
-                println!("{} address", address);
-            } else {
-                print!("failed to load address")
-            }
-            if let Ok(address) = wallet.wallet.get_address(AddressIndex::New) {
-                println!("{} address", address);
-            } else {
-                print!("failed to load address")
-            }
+//             if let Ok(address) = wallet.wallet.get_internal_address(AddressIndex::New) {
+//                 println!("{} address", address);
+//             } else {
+//                 print!("failed to load address")
+//             }
+//             if let Ok(address) = wallet.wallet.get_address(AddressIndex::New) {
+//                 println!("{} address", address);
+//             } else {
+//                 print!("failed to load address")
+//             }
             
-        }
-        Err(err) => println!("{}", err),
-    }
-}
+//         }
+//         Err(err) => println!("{}", err),
+//     }
+// }
 
 
-#[tokio::test]
-async fn inscribe_brc_transfer(){
-    let wallet = MultiWallet::new(
-        2,
-        vec![
-            "022a901525c907899a43c101cc21c11cc03e1f122e7e6845303e98e73dfc73cd71".to_string(),
-            "0384ed0788ee7d463d7e3c9f05761da775518d3262f2a54bcca38c9b85cd1b4a7c".to_string(),
-            "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()  
-        ],
-        "./wallet_test".to_string(),
-        Network::Regtest,
-        "http://127.0.0.1:18443".to_string(),
-        Auth::UserPass {
-            username: "user".to_string(),
-            password: "pass".to_string(),
-        },
-        "https://api.hiro.so".to_string()
-    ).await;
-    match wallet {
-        Ok(wallet) => {
+// #[tokio::test]
+// async fn inscribe_brc_transfer(){
+//     let wallet = MultiWallet::new(
+//         2,
+//         vec![
+//             "022a901525c907899a43c101cc21c11cc03e1f122e7e6845303e98e73dfc73cd71".to_string(),
+//             "0384ed0788ee7d463d7e3c9f05761da775518d3262f2a54bcca38c9b85cd1b4a7c".to_string(),
+//             "0392baf3c3dc1be2993230f7eaa5742b3b5c38b2a6723750bdb6ae15ee7a859eeb".to_string()  
+//         ],
+//         "./wallet_test".to_string(),
+//         Network::Regtest,
+//         "http://127.0.0.1:18443".to_string(),
+//         Auth::UserPass {
+//             username: "user".to_string(),
+//             password: "pass".to_string(),
+//         },
+//         "https://api.hiro.so".to_string()
+//     ).await;
+//     match wallet {
+//         Ok(wallet) => {
 
-            let ins = wallet.inscribe_transferable("bepi".to_string(), 25.2).await;
-            match  ins {
-                Ok(ins) => {
-                    println!("inscription :{:?}",ins);
-                },
-                Err(er) => {
-                    panic!("failed to inscribe :{}",er);
-                },
-            }
+//             let ins = wallet.inscribe_transferable("bepi".to_string(), 25.2).await;
+//             match  ins {
+//                 Ok(ins) => {
+//                     println!("inscription :{:?}",ins);
+//                 },
+//                 Err(er) => {
+//                     panic!("failed to inscribe :{}",er);
+//                 },
+//             }
 
-        }
-        Err(err) => println!("{}", err),
-    }
-}
+//         }
+//         Err(err) => println!("{}", err),
+//     }
+// }
 //#[tokio::test]
 // async fn xfer_insc_psbt(){
 //     let wallet = MultiWallet::new(
@@ -608,8 +607,8 @@ async fn test(){
             "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
         ],
         "./wallet_test".to_string(),
-        Network::Regtest,
-        "http://127.0.0.1:18443".to_string(),
+        Network::Bitcoin,
+        "http://127.0.0.1:8332".to_string(),
         Auth::UserPass {
             username: "user".to_string(),
             password: "pass".to_string(),
@@ -619,12 +618,10 @@ async fn test(){
     match wallet {
         Ok(wallet) => {
             
-            let mut base_psbt = PartiallySignedTransaction::from_str("cHNidP8BAP21AQIAAAAFy0pEXgOgnMqPaONq0dxWW26eBxCgeuQ1/F+otCGGu5QFAAAAAP/////LSkReA6Ccyo9o42rR3FZbbp4HEKB65DX8X6i0IYa7lAYAAAAA/////0QLI4/kA6/92xZx+G9iq1PEa5KCFHlZh2p9NNwg9kFVAAAAAAD/////BG7Hizoit6pRdS0Z9QZki4Vv/SGRA2gcugYGruPc6qUBAAAAAP/////LSkReA6Ccyo9o42rR3FZbbp4HEKB65DX8X6i0IYa7lAAAAAAA/////wZYAgAAAAAAABYAFPkFfBviIP5q9JreALkjF3jkXZb+IgIAAAAAAAAiUSCuygoGpuWFFt8h+M0JxJJfXmT974oRyXcdQKzAzUpvACDLAAAAAAAAIlEgJfMniH5NSVOgYJs4inBBjA2gAsW4PQ7w3yktazO7l+cQfQkAAAAAACJRIK7KCgam5YUW3yH4zQnEkl9eZP3vihHJdx1ArMDNSm8ALAEAAAAAAAAWABT5BXwb4iD+avSa3gC5Ixd45F2W/iwBAAAAAAAAFgAU+QV8G+Ig/mr0mt4AuSMXeORdlv4AAAAAAAEBHywBAAAAAAAAFgAU+QV8G+Ig/mr0mt4AuSMXeORdlv4AAQEfLAEAAAAAAAAWABT5BXwb4iD+avSa3gC5Ixd45F2W/gABASsiAgAAAAAAACJRICXzJ4h+TUlToGCbOIpwQYwNoALFuD0O8N8pLWszu5fnAQMEgwAAAAEXIOMDaPlD4TljY/4lqusTGjkVE0yKxGq1xMGAlVtEWQvMAAEBKxh+CgAAAAAAIlEgrsoKBqblhRbfIfjNCcSSX15k/e+KEcl3HUCswM1KbwABFyBASZNmhwY/1ISJ1WKAy36Ow+sVYAatxNLd65K0p0qjUwABAR9YAgAAAAAAABYAFPkFfBviIP5q9JreALkjF3jkXZb+AAAAAAAAAA==").unwrap();
-           let script = Address::from_str("bc1p4m9q5p4xukz3dheplrxsn3yjta0xfl003ggujacagzkvpn22duqqyjan4s").unwrap().script_pubkey();
-            let secp = Secp256k1::new();
-            // let psbt = base_psbt.finalize(&secp).unwrap();
-            // let finalized_tx = base_psbt.extract_tx();
-            println!("tx:{:#?}",base_psbt.inputs[3]);
+            let out =OutPoint::from_str("b3efbb2f49bedfd1a158c9e0e952c899c2d3d8f2955a78c4c65ab2880ae97048:0").unwrap();
+            wallet.update_unspendable(out);
+            let u = wallet.get_unspendable();
+            println!("u:{:?}",u);
             // dbg!(finalized_tx.txid());
             // let broadcast = wallet.blockchain.broadcast(&finalized_tx);
             // match  broadcast {

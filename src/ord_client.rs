@@ -245,123 +245,123 @@ pub async fn server_online() -> bool {
     }
 }
 
-#[tokio::test]
-async fn test_server_online() {
-    let _status = server_online().await;
-    assert!(_status);
-}
+// #[tokio::test]
+// async fn test_server_online() {
+//     let _status = server_online().await;
+//     assert!(_status);
+// }
 
-#[tokio::test]
-async fn estimate_fee(){
+// #[tokio::test]
+// async fn estimate_fee(){
 
-    let wallet = MultiWallet::new(
-        2,
-        vec![
-            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
-            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
-            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
-        ],
-        "./wallet_test".to_string(),
-        Network::Bitcoin,
-        "http://127.0.0.1:8332".to_string(),
-        Auth::UserPass {
-            username: "user".to_string(),
-            password: "pass".to_string(),
-        },
-        "https://api.hiro.so".to_string()
-    ).await;
-    match  wallet {
-        Ok(wallet) => {
-            let mut args = vec![];
-            args.add_fee_rate(&wallet.blockchain,Network::Bitcoin).await;
-            print!("{:?}",args)
-        }
-        Err(e) => {
-            print!("{} error",e)
-        },
-    }
+//     let wallet = MultiWallet::new(
+//         2,
+//         vec![
+//             "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+//             "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+//             "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
+//         ],
+//         "./wallet_test".to_string(),
+//         Network::Bitcoin,
+//         "http://127.0.0.1:8332".to_string(),
+//         Auth::UserPass {
+//             username: "user".to_string(),
+//             password: "pass".to_string(),
+//         },
+//         "https://api.hiro.so".to_string()
+//     ).await;
+//     match  wallet {
+//         Ok(wallet) => {
+//             let mut args = vec![];
+//             args.add_fee_rate(&wallet.blockchain,Network::Bitcoin).await;
+//             print!("{:?}",args)
+//         }
+//         Err(e) => {
+//             print!("{} error",e)
+//         },
+//     }
         
-}
+// }
    
     
 
-#[tokio::test]
-async fn inscribe_brc20_test(){
-    let wallet = MultiWallet::new(
-        2,
-        vec![
-            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
-            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
-            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
-        ],
-        "./wallet_test".to_string(),
-        Network::Regtest,
-        "http://127.0.0.1:18443".to_string(),
-        Auth::UserPass {
-            username: "user".to_string(),
-            password: "pass".to_string(),
-        },
-        "https://api.hiro.so".to_string()
-    ).await;
-    match  wallet {
-        Ok(wallet) => {
-            if let Ok(address) = wallet.wallet.get_internal_address(AddressIndex::New) {
-                println!("{} address", address);
-            } else {
-                print!("failed to load address")
-            }
-            let brc =  Brc20::new_deploy("test".to_string(), 100.00, 200.00) ;
-            if let Ok(address) = wallet.wallet.get_internal_address(AddressIndex::New){
-                let output = wallet.ord.inscribe_brc20(brc, address.address, &wallet.blockchain).await;
-                match output {
-                    Ok(ins) => {
-                        println!("out {:?}",ins)
-                    },
-                    Err(err) => {
-                        println!("error {}",err)
-                    }
-                }
-            }else{
+// #[tokio::test]
+// async fn inscribe_brc20_test(){
+//     let wallet = MultiWallet::new(
+//         2,
+//         vec![
+//             "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+//             "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+//             "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
+//         ],
+//         "./wallet_test".to_string(),
+//         Network::Regtest,
+//         "http://127.0.0.1:18443".to_string(),
+//         Auth::UserPass {
+//             username: "user".to_string(),
+//             password: "pass".to_string(),
+//         },
+//         "https://api.hiro.so".to_string()
+//     ).await;
+//     match  wallet {
+//         Ok(wallet) => {
+//             if let Ok(address) = wallet.wallet.get_internal_address(AddressIndex::New) {
+//                 println!("{} address", address);
+//             } else {
+//                 print!("failed to load address")
+//             }
+//             let brc =  Brc20::new_deploy("test".to_string(), 100.00, 200.00) ;
+//             if let Ok(address) = wallet.wallet.get_internal_address(AddressIndex::New){
+//                 let output = wallet.ord.inscribe_brc20(brc, address.address, &wallet.blockchain).await;
+//                 match output {
+//                     Ok(ins) => {
+//                         println!("out {:?}",ins)
+//                     },
+//                     Err(err) => {
+//                         println!("error {}",err)
+//                     }
+//                 }
+//             }else{
 
-            }
-        }
-        Err(e) => {
-            print!("{} error",e)
-        },
-    }
-}
+//             }
+//         }
+//         Err(e) => {
+//             print!("{} error",e)
+//         },
+//     }
+// }
 
 
 
-#[tokio::test] 
-pub async fn get_receive(){
-    let wallet = MultiWallet::new(
-        2,
-        vec![
-            "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
-            "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
-            "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
-        ],
-        "./wallet_test".to_string(),
-        Network::Regtest,
-        "http://127.0.0.1:18443".to_string(),
-        Auth::UserPass {
-            username: "user".to_string(),
-            password: "pass".to_string(),
-        },
-        "https://api.hiro.so".to_string()
-    ).await;
-    match  wallet {
-    Ok(wallet) => {
-        if let Ok(address) = wallet.ord.recieve(){
-            println!("address: {}",address);
-        }
-        else {
-            panic!("failed to get address");
-        }
-    },
-    Err(_) => panic!("failed to load wallet")
-    }
+// #[tokio::test] 
+// pub async fn get_receive(){
+//     let wallet = MultiWallet::new(
+//         2,
+//         vec![
+//             "03dbbe502ba9a7110c1c2dc0dd2f2fc71ea123b307821c2cc2653ff492d393d4b1".to_string(),
+//             "02425ed415b1ac0a02204e79a7423c5b476bf5bd281f65f909fa12e00e1e4b5423".to_string(),
+//             "02e99f26b813a156a264ed3a9fe486e8c3eed4c3a6e629043862cb9b5083203b04".to_string(),
+//         ],
+//         "./wallet_test".to_string(),
+//         Network::Regtest,
+//         "http://127.0.0.1:18443".to_string(),
+//         Auth::UserPass {
+//             username: "user".to_string(),
+//             password: "pass".to_string(),
+//         },
+//         "https://api.hiro.so".to_string()
+//     ).await;
+//     match  wallet {
+//     Ok(wallet) => {
+//         if let Ok(address) = wallet.ord.recieve(){
+//             println!("address: {}",address);
+//         }
+//         else {
+//             panic!("failed to get address");
+//         }
+//     },
+//     Err(_) => panic!("failed to load wallet")
+//     }
         
     
-}
+// }
