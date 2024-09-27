@@ -188,12 +188,16 @@ impl MultiWallet {
         let (mut psbt, _details) = tx_builder.finish()?;
       
         
-        let _ = psbt.clone().extract_tx().input.iter()
-        .map(|input| {
-            let out = input.previous_output;
-            let _ = self.update_unspendable(out);
-            println!("add unspendable:{:?}",out);
-        });
+        let tx = psbt.clone().extract_tx();
+       for (index,input) in tx.input.iter().enumerate(){
+        let out = input.previous_output;
+           let _ = self.update_unspendable(out);
+             println!("add unspendable:{:?}",out);
+       }
+        // input.iter()
+        // .map(|input| {
+        //     
+        // });
 
 
 
@@ -606,7 +610,7 @@ async fn test(){
             "029469e94e617fb421b9298feeb0d3f7e901948b536803bde97da7752fe90c95e0".to_string(),
             "0393f448b315936fe3d38610fd61f15f893c3d8af8dc4dbaeacb35093f827e5820".to_string(),
         ],
-        "./wallet_test".to_string(),
+        "./wallet_test1".to_string(),
         Network::Bitcoin,
         "http://127.0.0.1:8332".to_string(),
         Auth::UserPass {
@@ -618,10 +622,23 @@ async fn test(){
     match wallet {
         Ok(wallet) => {
             
-            let out =OutPoint::from_str("b3efbb2f49bedfd1a158c9e0e952c899c2d3d8f2955a78c4c65ab2880ae97048:0").unwrap();
-            wallet.update_unspendable(out);
-            let u = wallet.get_unspendable();
-            println!("u:{:?}",u);
+            let to = Address::from_str("bc1p7y3xyywhfmzpmlkf98dnx0yxmfv76w5unknhetpzh8g30p8djdlq3qpyke").ok().unwrap();
+            let ins = Inscription{
+                                 id:"5a89e1c6cf55cfaaa7091c90a4336ac3c981e1f187901aa04233a7f8e4cc20efi0".to_string(),
+                                location:"5a89e1c6cf55cfaaa7091c90a4336ac3c981e1f187901aa04233a7f8e4cc20ef:0:0".to_string()
+                       };
+            let psbt = wallet.transfer_insc_zero_fee(ins,to).await.unwrap();
+            let un = wallet.get_unspendable().unwrap();
+            println!("u:{:?}",un);
+            // let _ = psbt.psbt.clone().extract_tx().input.iter()
+            // .map(|input| {
+            //     println!("for input:{:?}",input);
+            //     let out = input.previous_output;
+            //     let _ = self.update_unspendable(out);
+            //     println!("add unspendable:{:?}",out);
+            // });
+    
+            panic!("yo");
             // dbg!(finalized_tx.txid());
             // let broadcast = wallet.blockchain.broadcast(&finalized_tx);
             // match  broadcast {
