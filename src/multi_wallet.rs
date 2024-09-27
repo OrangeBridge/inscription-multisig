@@ -175,6 +175,7 @@ impl MultiWallet {
         let utxo: LocalUtxo = self.get_utxo(inscription.location)?;
         let unspendeble = self.get_unspendable()?;
         let feerate = self.fee_rate_sat_vb().await?;
+        println!("unspendable:{:?}",unspendeble.clone());
         tx_builder
         .ordering(TxOrdering::Untouched)
         .policy_path(path, KeychainKind::External)
@@ -185,7 +186,7 @@ impl MultiWallet {
         .enable_rbf();
         
         let (mut psbt, _details) = tx_builder.finish()?;
-        println!("unspendable:{:?}",unspendable);
+      
         
         let _ = psbt.clone().extract_tx().input.iter()
         .map(|input| {
